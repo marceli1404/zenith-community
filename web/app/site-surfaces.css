@@ -1,0 +1,737 @@
+/* Sites and a single site. Layout pieces come from dashboard.css (cn-*). */
+
+/* Sites list: each row can carry an ownership check under it. */
+.site-item {
+  scroll-margin-top: 96px;
+}
+.site-item:target .cn-table__row {
+  background: hsl(var(--accent-soft));
+}
+.site-verify {
+  margin: 0 28px 20px 82px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--bg) / 0.6);
+}
+.site-verify summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  color: hsl(var(--accent));
+  font-size: var(--type-caption);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.site-verify summary::-webkit-details-marker {
+  display: none;
+}
+.site-verify[open] summary {
+  border-bottom: var(--border-hair);
+}
+.site-verify__body {
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+  padding: 16px;
+}
+.site-verify__body > p {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+.site-verify__snippet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 6px 6px 16px;
+  border-radius: var(--shape-sm);
+  background: hsl(var(--surface-2));
+}
+.site-verify__snippet code {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: var(--type-caption) / 1.6 var(--font-numeric);
+  color: hsl(var(--text));
+}
+
+/* A single site */
+.site-tabs {
+  display: flex;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface));
+}
+.site-tabs button {
+  min-height: 38px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--shape-pill);
+  background: transparent;
+  color: hsl(var(--text-muted));
+  font: inherit;
+  font-size: var(--type-caption);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease), color var(--duration-quick) var(--ease);
+}
+.site-tabs button:hover {
+  color: hsl(var(--text));
+}
+.site-tabs button[aria-selected="true"] {
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text));
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+.site-tabpanel {
+  min-width: 0;
+}
+.site-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 0;
+  color: hsl(var(--text-muted));
+  text-align: center;
+}
+.site-list .cn-table__row {
+  grid-template-columns: minmax(0, 1.6fr) minmax(90px, 0.6fr) minmax(120px, 0.6fr) 20px;
+}
+.site-list .cn-chip {
+  text-transform: capitalize;
+}
+
+.site-incidents {
+  border-top: var(--border-hair);
+}
+.site-incident {
+  padding: 20px 28px 8px;
+}
+.site-incident + .site-incident {
+  border-top: var(--border-hair);
+}
+.site-incident__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.site-incident__head > div {
+  display: grid;
+  gap: 2px;
+}
+.site-incident__head strong {
+  font-weight: 500;
+}
+.site-incident__head small {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+
+/* Response-time chart */
+.response-trace {
+  display: grid;
+  gap: 20px;
+}
+.response-trace__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.response-trace__summary > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--shape-sm);
+  background: hsl(var(--surface-2));
+}
+.response-trace__summary dt {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+}
+.response-trace__summary dd {
+  margin: 0;
+  font: 500 1.125rem/1.2 var(--font-numeric);
+  letter-spacing: -0.02em;
+}
+.response-trace > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 320px;
+  overflow: visible;
+  cursor: crosshair;
+  border-radius: var(--shape-sm);
+}
+.trace-grid line {
+  stroke: hsl(var(--border));
+  stroke-dasharray: 3 5;
+}
+.trace-grid text,
+.trace-axis {
+  fill: hsl(var(--text-subtle));
+  font: 11px var(--font-numeric);
+}
+.trace-area {
+  fill: url(#trace-fill);
+}
+.trace-line {
+  fill: none;
+  stroke: hsl(var(--accent));
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.trace-dot {
+  fill: hsl(var(--accent));
+}
+.trace-fail line {
+  stroke: hsl(var(--bad) / 0.4);
+  stroke-dasharray: 2 4;
+}
+.trace-fail circle {
+  fill: hsl(var(--bad));
+}
+.trace-cursor line {
+  stroke: hsl(var(--text) / 0.25);
+}
+.trace-cursor circle {
+  fill: hsl(var(--surface));
+  stroke: hsl(var(--accent));
+  stroke-width: 2.5;
+}
+.trace-cursor circle.is-fail {
+  stroke: hsl(var(--bad));
+}
+.response-trace__readout {
+  min-height: 1.5em;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+
+/* Site workspace: header tabs shared by every /app/sites/:id/<tab> route.
+ * The wrapper is the non-scrolling positioning context for the edge-fade
+ * affordance; the nav itself is what actually scrolls. */
+.site-workspace-tabs-wrap {
+  position: relative;
+  max-width: 100%;
+}
+.site-workspace-tabs-wrap::before,
+.site-workspace-tabs-wrap::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 20px;
+  pointer-events: none;
+}
+.site-workspace-tabs-wrap::before {
+  left: 4px;
+  background: linear-gradient(to right, hsl(var(--surface)), hsl(var(--surface) / 0));
+  border-radius: var(--shape-pill) 0 0 var(--shape-pill);
+}
+.site-workspace-tabs-wrap::after {
+  right: 4px;
+  background: linear-gradient(to left, hsl(var(--surface)), hsl(var(--surface) / 0));
+  border-radius: 0 var(--shape-pill) var(--shape-pill) 0;
+}
+.site-workspace-tabs {
+  display: flex;
+  gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface));
+}
+.site-workspace-tabs a {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 18px;
+  border-radius: var(--shape-pill);
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--duration-quick) var(--ease), color var(--duration-quick) var(--ease);
+}
+.site-workspace-tabs a:hover {
+  color: hsl(var(--text));
+}
+.site-workspace-tabs a.is-current {
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text));
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
+/* Overview tab */
+.site-overview {
+  display: grid;
+  gap: 20px;
+}
+.site-overview__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+.site-overview__tile {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--surface));
+  text-decoration: none;
+  transition: border-color var(--duration-quick) var(--ease), background-color var(--duration-quick) var(--ease);
+}
+.site-overview__tile:hover {
+  border-color: hsl(var(--text) / 0.24);
+  background: hsl(var(--surface-2));
+}
+.site-overview__tile-label {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+}
+.site-overview__tile-value {
+  font: 500 1.25rem/1.2 var(--font-numeric);
+  color: hsl(var(--text));
+  letter-spacing: -0.02em;
+}
+/* Relative-time values ("5d ago") aren't tabular numbers — set them in the
+ * regular text font instead of the numeric one. */
+.site-overview__tile-value--text {
+  font-family: var(--font-body);
+  letter-spacing: normal;
+}
+.site-activity-list {
+  display: grid;
+}
+.site-activity-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 28px;
+  border-top: var(--border-hair);
+  font-size: var(--type-caption);
+}
+.site-activity-list li:first-child {
+  border-top: 0;
+}
+.site-activity-list time {
+  flex-shrink: 0;
+  color: hsl(var(--text-muted));
+}
+
+/* Promote tab */
+.promote-workspace {
+  display: grid;
+  gap: 20px;
+}
+
+.promote-history-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin-bottom: 18px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--border));
+}
+.promote-history-summary > div {
+  display: grid;
+  gap: 3px;
+  padding: 16px;
+  background: hsl(var(--surface));
+}
+.promote-history-summary strong { font-size: 1.45rem; letter-spacing: -0.035em; }
+.promote-history-summary span,
+.promote-history-summary small { color: hsl(var(--text-muted)); }
+.promote-history-chart {
+  display: flex;
+  align-items: end;
+  gap: 2px;
+  height: 86px;
+  padding-top: 8px;
+  border-bottom: var(--border-hair);
+}
+.promote-history-chart i {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px 2px 0 0;
+  background: hsl(var(--accent) / .72);
+  transition: opacity 160ms ease;
+}
+.promote-history-chart i:hover { opacity: .72; }
+.promote-query-movers { margin-top: 18px; }
+.promote-query-movers h3 { margin: 0 0 8px; font-size: .82rem; }
+.promote-query-movers > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: var(--border-hair);
+  font-size: .84rem;
+}
+.promote-query-movers strong { font-size: .78rem; font-weight: 600; }
+.promote-query-movers .is-up { color: hsl(var(--cn-good-ink)); }
+.promote-query-movers .is-down { color: hsl(var(--cn-bad-ink)); }
+
+.promote-competitor-form { margin-bottom: 14px; }
+.promote-competitors { border-top: var(--border-hair); }
+.promote-competitors article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-bottom: var(--border-hair);
+}
+.promote-competitors article > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.promote-competitors a,
+.promote-competitors small { color: hsl(var(--text-muted)); font-size: .78rem; }
+.promote-competitors a { width: fit-content; }
+.promote-competitor-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+
+@media (max-width: 640px) {
+  .promote-history-summary { grid-template-columns: 1fr; }
+  .promote-query-movers > div,
+  .promote-competitors article { align-items: flex-start; flex-direction: column; }
+  .promote-competitor-actions { width: 100%; justify-content: flex-end; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .promote-history-chart i { transition: none; }
+}
+.promote-analysis-stage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: hsl(var(--text-muted));
+}
+.promote-profile-grid {
+  display: grid;
+  gap: 18px;
+  margin: 0;
+}
+.promote-profile-field dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+}
+/* .promote-profile-view/-edit are applied directly to the <dd> in
+ * PromoteWorkspace.tsx (not a div wrapping a <dd>) so each
+ * .promote-profile-field group div contains exactly one <dt> and one <dd>,
+ * which is what the dl/dt/dd content model requires. */
+.promote-profile-view {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  color: hsl(var(--text));
+}
+.promote-profile-view > span {
+  max-width: 42rem;
+}
+.promote-profile-edit {
+  display: grid;
+  gap: 10px;
+}
+.promote-textarea {
+  width: 100%;
+  min-height: 5.5rem;
+  padding: 12px 16px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--bg));
+  color: hsl(var(--text));
+  font: inherit;
+  resize: vertical;
+}
+.promote-profile-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.promote-important-urls {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: var(--border-hair);
+}
+.promote-important-urls h3 {
+  margin: 0 0 10px;
+  font-size: var(--type-label);
+  color: hsl(var(--text-muted));
+}
+.promote-important-urls ul {
+  display: grid;
+  gap: 6px;
+}
+.promote-panel-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.promote-keyword-groups {
+  display: grid;
+  gap: 24px;
+}
+.promote-keyword-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: var(--type-label);
+  color: hsl(var(--text-muted));
+}
+.promote-keyword-table .cn-table__head,
+.promote-keyword-row {
+  grid-template-columns: minmax(0, 1.6fr) minmax(90px, 0.6fr) minmax(80px, 0.5fr) minmax(90px, 0.5fr) minmax(80px, 0.5fr) minmax(0, 0.8fr) auto;
+}
+/* A keyword and its reason stack and wrap: both are the point of the row. */
+.promote-keyword-row .cn-primary-cell {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.promote-keyword-row .cn-primary-cell strong,
+.promote-keyword-row .cn-primary-cell small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.promote-keyword-row.is-dismissed {
+  opacity: 0.55;
+}
+.promote-keyword-dismiss {
+  justify-self: end;
+}
+.promote-opportunities {
+  display: grid;
+}
+.promote-opportunity {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 28px;
+  border-top: var(--border-hair);
+}
+.promote-opportunity:first-child {
+  border-top: 0;
+}
+/* Arrived from the dashboard's "Do this next" link: mark the chosen card. */
+.promote-opportunity.is-target {
+  box-shadow: inset 3px 0 0 hsl(var(--accent));
+  background: hsl(var(--accent-soft));
+}
+.promote-opportunity:focus {
+  outline: none;
+}
+.promote-opportunity:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: -2px;
+}
+.promote-opportunity__main {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+}
+.promote-opportunity__rank {
+  flex-shrink: 0;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+.promote-opportunity__main h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.promote-opportunity__main p {
+  margin: 0 0 6px;
+  color: hsl(var(--text-muted));
+}
+.promote-opportunity__action strong {
+  color: hsl(var(--text));
+  font-weight: 500;
+}
+.promote-opportunity__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+/* The text column must be allowed to shrink, and long evidence labels must
+   wrap inside their chip, or narrow screens scroll sideways. */
+.promote-opportunity__main > div:last-child {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.promote-opportunity__chips .cn-chip {
+  max-width: 100%;
+  white-space: normal;
+  padding-block: 4px;
+  line-height: 1.35;
+}
+.promote-opportunity__why {
+  margin-top: 8px;
+}
+.promote-opportunity__why summary {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: hsl(var(--accent));
+  font-size: var(--type-caption);
+  list-style: none;
+}
+.promote-opportunity__why summary::-webkit-details-marker {
+  display: none;
+}
+.promote-opportunity__reasons,
+.promote-opportunity__sources {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  font-size: var(--type-caption);
+  color: hsl(var(--text-muted));
+}
+.promote-opportunity__sources {
+  padding-left: 0;
+  list-style: none;
+}
+.promote-opportunity__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.promote-evidence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.promote-evidence {
+  margin-top: 8px;
+  padding: 12px 16px;
+  border-radius: var(--shape-sm);
+  background: hsl(var(--surface-2));
+  font-size: var(--type-caption);
+  overflow-x: auto;
+}
+.promote-suggestions {
+  display: grid;
+  gap: 20px;
+}
+.promote-suggestions__label {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+.promote-suggestion-list {
+  display: grid;
+  gap: 8px;
+}
+.promote-suggestion-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+}
+.promote-suggestion-text {
+  margin: 0 0 8px;
+}
+.promote-suggestions__close {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .site-verify {
+    margin: 0 20px 16px;
+  }
+  .site-workspace-tabs {
+    width: 100%;
+  }
+  .site-workspace-tabs a {
+    padding: 0 14px;
+  }
+  .response-trace__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .site-incident {
+    padding: 16px 20px 4px;
+  }
+  .site-list .cn-table__row {
+    grid-template-columns: minmax(0, 1fr) auto 18px;
+  }
+  .site-list .cn-table__row > :nth-child(3) {
+    display: none;
+  }
+  .promote-keyword-table .cn-table__head,
+  .promote-keyword-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .promote-keyword-table .cn-table__head > :not(:first-child, :last-child) {
+    display: none;
+  }
+  /* Keep the Page column (6th cell, with the only "View page" action) on
+   * screen instead of hiding it with the rest of the mid columns — stack it
+   * under the keyword so the link stays reachable on mobile. */
+  .promote-keyword-row > :not(:first-child, :nth-child(6), :last-child) {
+    display: none;
+  }
+  .promote-keyword-row > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .promote-keyword-row > :nth-child(6) {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: var(--type-caption);
+  }
+  .promote-keyword-row > :last-child {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .promote-opportunity {
+    flex-direction: column;
+  }
+  .promote-opportunity__actions {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+.promote-opportunity__sources-label {
+  margin: 10px 0 4px;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+}

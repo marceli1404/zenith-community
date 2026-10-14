@@ -1,0 +1,403 @@
+/*
+ * Live scan report: a visitor's own quick scan, rendered as a Zenith report in
+ * place of the sample story on the home page. Also the "building your report"
+ * state shown while the scan runs.
+ */
+
+.lx-scan-report {
+  margin-top: var(--space-6);
+  padding-bottom: var(--space-7);
+  scroll-margin-top: calc(var(--nav-height) + 28px);
+}
+.lx-live-sheet {
+  display: flex;
+  flex-direction: column;
+  padding: clamp(18px, 2.6vw, 34px);
+  font-size: 14px;
+}
+.lx-live-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(20px, 3vw, 44px);
+  padding: 24px 0;
+  border-bottom: var(--border-hair);
+}
+.lx-live-host {
+  margin: 0;
+  font: 500 var(--type-small) / 1.3 var(--font-numeric);
+  color: hsl(var(--text-muted));
+  overflow-wrap: anywhere;
+}
+.lx-live-host:focus {
+  outline: none;
+}
+.lx-live-host:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 4px;
+}
+.lx-live-score__value {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 12px 0 0;
+}
+.lx-live-score__value .lx-sheet__number {
+  font-size: clamp(4rem, 3rem + 3.4vw, 6rem);
+}
+.lx-live-categories {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  padding: 0;
+  border: 0;
+}
+.lx-live-checks {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lx-live-checks li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--type-small);
+  color: hsl(var(--text));
+}
+.lx-live-checks__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: hsl(var(--good) / 0.14);
+  color: hsl(var(--good));
+}
+.lx-live-checks li[data-ok="false"] .lx-live-checks__mark {
+  background: hsl(var(--bad) / 0.14);
+  color: hsl(var(--bad));
+}
+.lx-live-checks__note {
+  color: hsl(var(--bad));
+}
+
+.lx-live-findings {
+  padding: 22px 0 8px;
+}
+.lx-live-findings .lx-sheet__subhead {
+  margin-top: 0;
+}
+.lx-live-findings__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lx-live-finding {
+  border-top: var(--border-hair);
+}
+.lx-live-finding:first-child {
+  border-top: 0;
+}
+.lx-live-finding__toggle {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 4px;
+  border: 0;
+  border-radius: var(--shape-sm);
+  background: none;
+  color: hsl(var(--text));
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease);
+}
+.lx-live-finding__toggle:hover {
+  background: hsl(var(--text) / 0.04);
+}
+.lx-live-finding__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: var(--type-small);
+  font-weight: 500;
+}
+.lx-live-finding__category {
+  font-size: var(--type-caption);
+  font-weight: 400;
+  color: hsl(var(--text-subtle));
+}
+.lx-live-finding__chevron {
+  color: hsl(var(--text-muted));
+  transition: transform var(--duration-base) var(--lx-ease-out);
+}
+.lx-live-finding[data-open] .lx-live-finding__chevron {
+  transform: rotate(180deg);
+}
+.lx-live-finding__detail {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-slow) var(--lx-ease-out);
+}
+.lx-live-finding__detail[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.lx-live-finding__inner {
+  overflow: hidden;
+  padding-left: calc(5.5rem + 18px);
+}
+.lx-live-finding__inner p {
+  margin: 0 0 10px;
+  max-width: 70ch;
+  font-size: var(--type-small);
+  line-height: 1.6;
+  color: hsl(var(--text-muted));
+}
+.lx-live-finding__inner strong {
+  color: hsl(var(--text));
+  font-weight: 500;
+}
+.lx-live-finding__locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 16px;
+  padding: 6px 12px;
+  border: 1px dashed hsl(var(--border));
+  border-radius: var(--shape-pill);
+  font-size: var(--type-caption);
+  color: hsl(var(--text-muted));
+  text-decoration: none;
+  transition: color var(--duration-quick) var(--ease), border-color var(--duration-quick) var(--ease);
+}
+.lx-live-finding__locked:hover {
+  color: hsl(var(--text));
+  border-color: hsl(var(--accent) / 0.6);
+}
+/* The public guide sits above the locked prompt: plain link, accent arrow. */
+.lx-live-finding__guide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 0 0 10px;
+  font-size: var(--type-small);
+  font-weight: 500;
+  color: hsl(var(--text));
+  text-decoration: none;
+}
+.lx-live-finding__guide .lx-icon {
+  color: hsl(var(--accent));
+  transition: transform var(--duration-quick) var(--lx-ease-out);
+}
+.lx-live-finding__guide:hover .lx-icon {
+  transform: translateX(3px);
+}
+.lx-live-finding__guide:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.lx-live-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 0;
+  color: hsl(var(--text));
+}
+.lx-live-empty .lx-icon {
+  color: hsl(var(--good));
+}
+
+.lx-live-next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: 8px;
+  padding: 18px 20px;
+  border-radius: var(--shape-md);
+  background:
+    radial-gradient(60% 140% at 0% 50%, hsl(var(--accent) / 0.1), transparent 70%),
+    hsl(var(--surface-2));
+}
+.lx-live-next p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--type-small);
+  color: hsl(var(--text));
+}
+.lx-live-next__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+}
+.lx-live-next__again {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ---- Loading state ------------------------------------------------------------------ */
+
+.lx-live-loading {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: var(--space-5);
+  padding: 28px 0 8px;
+  overflow: hidden;
+}
+.lx-live-loading__beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 35%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
+  --sweep-end: 286%;
+  animation: lx-sweep var(--duration-sweep) var(--lx-ease-in-out) infinite;
+}
+.lx-live-loading__stages {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lx-live-loading__stages li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--type-small);
+  color: hsl(var(--text-subtle));
+  transition: color var(--duration-base) var(--ease);
+}
+.lx-live-loading__stages li[data-state="active"],
+.lx-live-loading__stages li[data-state="done"] {
+  color: hsl(var(--text));
+}
+.lx-live-loading__tick {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px hsl(var(--border));
+  color: hsl(var(--accent-fg));
+}
+.lx-live-loading__stages li[data-state="done"] .lx-live-loading__tick {
+  background: hsl(var(--accent-fill));
+  box-shadow: none;
+}
+.lx-live-loading__stages li[data-state="active"] .lx-live-loading__tick {
+  box-shadow: inset 0 0 0 1.5px hsl(var(--accent));
+  animation: lx-live-pulse 1.2s var(--ease) infinite;
+}
+.lx-live-skeleton {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.lx-live-skeleton span {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, hsl(var(--surface-2)) 0%, hsl(var(--border)) 50%, hsl(var(--surface-2)) 100%);
+  background-size: 200% 100%;
+  animation: lx-shimmer var(--duration-shimmer) linear infinite;
+}
+.lx-live-skeleton span:nth-child(1) { width: 40%; height: 44px; border-radius: 10px; }
+.lx-live-skeleton span:nth-child(2) { width: 90%; }
+.lx-live-skeleton span:nth-child(3) { width: 75%; }
+.lx-live-skeleton span:nth-child(4) { width: 82%; }
+
+@media (max-width: 899px) {
+  .lx-live-top,
+  .lx-live-loading {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lx-live-finding__toggle {
+    grid-template-columns: minmax(0, 1fr) 20px;
+  }
+  .lx-live-finding__toggle .lx-severity,
+  .lx-live-finding__title {
+    grid-column: 1;
+  }
+  .lx-live-finding__chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .lx-live-finding__inner {
+    padding-left: 4px;
+  }
+}
+
+/* ---- Arrival ---------------------------------------------------------------------- */
+
+/* The report arrives: the panel rises, bars fill in turn, checks and findings
+   follow. Text only moves or wipes in, so contrast is never reduced. */
+@media (prefers-reduced-motion: no-preference) {
+  .lx-scan-report > .lx-bezel {
+    animation: lx-live-rise 700ms var(--lx-ease-out) backwards;
+  }
+  .lx-live-sheet:not(.is-loading) .lx-sheet__bar > span {
+    transform-origin: left;
+    animation: lx-live-fill 1000ms var(--lx-ease-out) backwards;
+    animation-delay: calc(250ms + var(--i, 0) * 110ms);
+  }
+  .lx-live-checks li {
+    animation: lx-live-slide 500ms var(--lx-ease-out) backwards;
+    animation-delay: calc(450ms + var(--i, 0) * 90ms);
+  }
+  .lx-live-checks__mark {
+    animation: lx-live-pop 420ms var(--ease-spring) backwards;
+    animation-delay: calc(550ms + var(--i, 0) * 90ms);
+  }
+  .lx-live-finding {
+    animation: lx-live-slide 520ms var(--lx-ease-out) backwards;
+    animation-delay: calc(700ms + var(--i, 0) * 80ms);
+  }
+  .lx-live-next {
+    animation: lx-live-rise 600ms var(--lx-ease-out) backwards;
+    animation-delay: 1100ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lx-live-loading__beam,
+  .lx-live-skeleton span,
+  .lx-live-loading__stages li[data-state="active"] .lx-live-loading__tick {
+    animation: none;
+  }
+}
+
+@keyframes lx-live-rise {
+  from { transform: translateY(40px) scale(0.98); }
+  to { transform: none; }
+}
+@keyframes lx-live-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes lx-live-slide {
+  from { transform: translateX(-16px); clip-path: inset(0 100% 0 0); }
+  to { transform: none; clip-path: inset(-10% -4% -10% -4%); }
+}
+@keyframes lx-live-pop {
+  from { transform: scale(0.4); }
+  to { transform: none; }
+}
+@keyframes lx-live-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 1.5px hsl(var(--accent)), 0 0 0 0 hsl(var(--accent) / 0.35); }
+  50% { box-shadow: inset 0 0 0 1.5px hsl(var(--accent)), 0 0 0 6px hsl(var(--accent) / 0); }
+}

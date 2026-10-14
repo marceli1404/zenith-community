@@ -1,0 +1,483 @@
+/*
+ * Scroll choreography. Everything here is a CSS scroll-driven animation: it runs
+ * off the main thread, follows the scrollbar in both directions, and needs no
+ * scroll listeners. Three rules keep it honest:
+ *
+ *   1. Defaults are the finished state. Browsers without scroll timelines and
+ *      reduced motion see complete content.
+ *   2. Text is never faded to a partial opacity. Entrances use transforms or
+ *      masks, so contrast holds at every scroll position. (The hero story is not
+ *      scroll-scrubbed: its stages are short time-based transitions.)
+ *   3. Sticky parts (library heading, contents rail, report cover) are left still.
+ */
+
+@property --n {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 0;
+}
+@property --split {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 50%;
+}
+
+/* ============================================================== Hero story */
+
+/* HeroStory.tsx picks the stage on a timer once the card is in view, and sets
+   data-stage; every change between stages is a short transition here. Without
+   data-live (no JavaScript, reduced motion) the finished report shows. */
+
+.lx-hero__scroll {
+  margin-top: var(--space-6);
+}
+.lx-hero__pin {
+  position: relative;
+  padding-bottom: var(--space-7);
+}
+.lx-hero__panel {
+  position: relative;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+.lx-hero__caption {
+  margin-top: var(--space-2);
+  text-align: center;
+  font-size: var(--type-caption);
+  color: hsl(var(--text-subtle));
+}
+.lx-story-sheet {
+  position: relative;
+}
+@media (max-width: 899px) {
+  .lx-hero__scroll {
+    margin-top: var(--space-5);
+  }
+  .lx-hero__pin {
+    padding-bottom: var(--space-6);
+  }
+}
+
+/* ---- Pop-out: the card rises and scales up once, the first time it is seen. It is
+   hidden before hydration only where scripting runs; if the script never arrives,
+   a failsafe shows it after three seconds. ------------------------------------------ */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .lx-hero__scroll:not([data-live]) .lx-hero__panel,
+  .lx-hero__panel:not([data-in]) {
+    opacity: 0;
+    transform: translateY(40px) scale(0.94);
+  }
+  .lx-hero__scroll:not([data-live]) .lx-hero__panel {
+    animation: lx-story-failsafe 1ms 3s forwards;
+  }
+}
+.lx-hero__panel[data-in] {
+  transition: opacity 420ms var(--ease), transform 820ms var(--ease-spring);
+}
+@keyframes lx-story-failsafe {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Stages: parts marked data-step="n" wait until stage n. Showing uses each
+   part's --d stagger; hiding (scrolling back) is quick and immediate. ------------- */
+[data-live] [data-step] {
+  transition: opacity 320ms var(--ease) var(--d, 0ms), transform 560ms var(--lx-ease-out) var(--d, 0ms);
+}
+[data-live][data-stage="0"] [data-step]:not([data-step="0"]),
+[data-live][data-stage="1"] :is([data-step="2"], [data-step="3"], [data-step="4"]),
+[data-live][data-stage="2"] :is([data-step="3"], [data-step="4"]),
+[data-live][data-stage="3"] [data-step="4"] {
+  opacity: 0;
+  transform: translateY(10px);
+  transition-duration: 160ms;
+  transition-delay: 0ms;
+}
+
+/* Bars grow from the left just after their row lands. */
+[data-live] .lx-story-sheet .lx-sheet__bar > span {
+  transform-origin: left;
+  transition: transform 720ms var(--lx-ease-out) calc(var(--d, 0ms) + 140ms);
+}
+[data-live][data-stage="0"] .lx-story-sheet .lx-sheet__bar > span {
+  transform: scaleX(0);
+  transition-duration: 160ms;
+  transition-delay: 0ms;
+}
+
+/* Status and scope labels slide in whenever their text changes. */
+.lx-story-status {
+  display: inline-grid;
+  overflow: hidden;
+}
+[data-live] .lx-story-swap {
+  display: inline-block;
+  animation: lx-story-swap 380ms var(--lx-ease-out) both;
+}
+@keyframes lx-story-swap {
+  from {
+    opacity: 0;
+    transform: translateY(70%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.lx-story-fixed {
+  color: hsl(var(--good));
+}
+
+/* Stage 0: a scan beam sweeps the top of the card while the request is out. */
+.lx-story-beam {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms var(--ease);
+}
+.lx-story-beam::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
+  transform: translateX(-100%);
+}
+[data-live][data-stage="0"] .lx-hero__panel[data-in] .lx-story-beam {
+  opacity: 1;
+}
+[data-live][data-stage="0"] .lx-hero__panel[data-in] .lx-story-beam::after {
+  --sweep-end: 250%;
+  animation: lx-sweep var(--duration-sweep) var(--lx-ease-in-out) infinite;
+}
+
+/* Stage 3: the prompt types; the untyped rest keeps its space, invisibly. */
+.lx-story-rest {
+  color: transparent;
+}
+.lx-story-caret {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-right: -0.55em;
+  vertical-align: text-bottom;
+  background: hsl(var(--accent));
+  animation: lx-story-caret 900ms steps(1) infinite;
+}
+@keyframes lx-story-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Stage 4: the re-scan strikes the fixed finding through. */
+.lx-story-title {
+  position: relative;
+}
+/* An inline background strip rather than one absolute line, so the strike
+   follows the title across every line it wraps to on narrow screens. With the
+   default "slice" decoration break, growing background-size sweeps the lines in
+   reading order. */
+.lx-story-strike {
+  background: linear-gradient(hsl(var(--good)), hsl(var(--good))) no-repeat 0 55% / 100% 1.5px;
+}
+[data-live] .lx-story-strike {
+  transition: background-size 520ms var(--lx-ease-out) 220ms;
+}
+[data-live]:not([data-stage="4"]) .lx-story-strike {
+  background-size: 0% 1.5px;
+  transition-delay: 0ms;
+}
+
+/* ============================================================== Motion vocabulary */
+
+/* Entrances move but never fade: text keeps full contrast at every scroll position,
+   including while a card is still travelling into place. */
+@keyframes lx-sd-rise {
+  from {
+    transform: translateY(64px) scale(0.96);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes lx-sd-tilt {
+  from {
+    transform: perspective(1200px) rotateX(20deg) translateY(72px) scale(0.97);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes lx-sd-clip {
+  from {
+    clip-path: inset(0 0 100% 0);
+    transform: translateY(0.35em);
+  }
+  to {
+    clip-path: inset(-20% -4% -30% -4%);
+    transform: none;
+  }
+}
+@keyframes lx-sd-wipe-right {
+  from {
+    clip-path: inset(0 100% 0 0);
+    transform: translateX(-14px);
+  }
+  to {
+    clip-path: inset(-10% -2% -10% -2%);
+    transform: none;
+  }
+}
+@keyframes lx-scale-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes lx-scale-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes lx-count {
+  from { --n: 0; }
+  to { --n: var(--to); }
+}
+@keyframes lx-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes lx-hero-lift {
+  to {
+    transform: translateY(-56px);
+  }
+}
+
+/* ============================================================== Scroll-driven layer */
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    /* ---- Counters: rendered through a pseudo-element driven by --n. The real
+       number stays in the DOM (transparent), so layout width and copy and paste
+       are unchanged. ---------------------------------------------------------------- */
+    .lx-count {
+      position: relative;
+      color: transparent;
+    }
+    .lx-count::after {
+      content: counter(lx-n);
+      counter-reset: lx-n var(--n);
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: hsl(var(--text));
+    }
+    .lx-deductions__value .lx-count::after,
+    .lx-intervals__value .lx-count::after {
+      animation: lx-count linear both;
+      animation-timeline: view();
+      animation-range: entry 60% cover 45%;
+    }
+    .lx-deductions__value .lx-count,
+    .lx-intervals__value .lx-count {
+      display: inline-block;
+    }
+
+    /* ---- Hero: the headline drifts up as the page scrolls ---------------------------- */
+    .lx-hero__copy {
+      animation: lx-hero-lift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 70vh;
+    }
+
+    /* ---- Site-wide entrances ------------------------------------------------------- */
+    .lx-section :not(.lx-library__head) > .lx-heading--section,
+    .lx-endcta__title {
+      animation: lx-sd-clip linear both;
+      animation-timeline: view();
+      animation-range: entry 10% entry 90%;
+    }
+    :is(.lx-head, .lx-sectionhead, .lx-evidence__head, .lx-faq__head, .lx-compare__copy, .lx-pricing-head) > :not(.lx-heading),
+    .lx-facts__item,
+    .lx-do__item,
+    .lx-flow__item,
+    .lx-terms__item,
+    .lx-plan,
+    .lx-plans__aside,
+    .lx-faq .lx-accordion__item,
+    .lx-library__body .lx-accordion__item,
+    .lx-library__filters,
+    .lx-review,
+    .lx-footer__brand,
+    .lx-footer__col,
+    .lx-linkindex > li,
+    .lx-numbered > li,
+    .lx-specs__row,
+    .lx-signal li,
+    .lx-intervals li,
+    .lx-contrast > div,
+    .lx-channels > li,
+    .lx-finding,
+    .lx-doc__section,
+    .lx-status__stats > div,
+    .lx-status__incidents > li,
+    .lx-deductions li,
+    .lx-glossary > div,
+    .lx-comparison__scroll,
+    .lx-article__aside,
+    .lx-quote {
+      animation: lx-sd-rise linear both;
+      animation-timeline: view();
+      animation-range: entry calc(0% + var(--sd-shift, 0%)) entry calc(75% + var(--sd-shift, 0%));
+    }
+    .lx-journal__list .lx-linkindex > li {
+      animation: lx-rise 380ms var(--lx-ease-out) backwards;
+      animation-timeline: auto;
+      animation-range: normal;
+    }
+    .lx-evidence__item,
+    .lx-compare__figure,
+    .lx-endcta__inner {
+      animation: lx-sd-tilt linear both;
+      animation-timeline: view();
+      animation-range: entry calc(0% + var(--sd-shift, 0%)) entry calc(80% + var(--sd-shift, 0%));
+    }
+
+    /* Siblings in the same row enter a beat apart. */
+    :is(.lx-linkindex, .lx-numbered, .lx-intervals, .lx-terms) > :nth-child(3n + 2),
+    :is(.lx-signal) > :nth-child(4n + 2),
+    :is(.lx-contrast, .lx-channels, .lx-specs, .lx-linkindex--two, .lx-numbered--two, .lx-status__stats) > :nth-child(2n) {
+      --sd-shift: 12%;
+    }
+    :is(.lx-linkindex:not(.lx-linkindex--two), .lx-numbered:not(.lx-numbered--two), .lx-intervals, .lx-terms, .lx-status__stats) > :nth-child(3n),
+    :is(.lx-signal) > :nth-child(4n + 3) {
+      --sd-shift: 24%;
+    }
+    .lx-signal > :nth-child(4n) {
+      --sd-shift: 36%;
+    }
+    .lx-deductions > :nth-child(2) { --sd-shift: 8%; }
+    .lx-deductions > :nth-child(3) { --sd-shift: 16%; }
+    .lx-deductions > :nth-child(4) { --sd-shift: 24%; }
+    .lx-deductions > :nth-child(5) { --sd-shift: 32%; }
+    .lx-do__item:nth-child(2),
+    .lx-do__item:nth-child(4) { --sd-shift: 8%; }
+    .lx-do__item:nth-child(3),
+    .lx-do__item:nth-child(5) { --sd-shift: 16%; }
+    .lx-evidence__item:nth-child(3),
+    .lx-evidence__item:nth-child(5) { --sd-shift: 14%; }
+
+    @media (max-width: 899px) {
+      .lx-do__item,
+      .lx-evidence__item,
+      :is(.lx-linkindex, .lx-numbered, .lx-intervals, .lx-terms, .lx-signal, .lx-contrast, .lx-channels, .lx-specs, .lx-status__stats) > * {
+        --sd-shift: 0%;
+      }
+    }
+
+    /* ---- Page-specific ------------------------------------------------------------- */
+    .lx-deductions__bar {
+      transform-origin: left;
+      animation: lx-scale-x linear both;
+      animation-timeline: view();
+      animation-range: entry 80% cover 50%;
+      transition: none;
+    }
+  }
+}
+
+/* ============================================================== Interaction polish */
+
+/* Prices roll when the billing interval changes. */
+.lx-roll {
+  display: inline-block;
+  animation: lx-roll 420ms var(--lx-ease-out);
+}
+@keyframes lx-roll {
+  from {
+    transform: translateY(45%);
+    filter: blur(3px);
+  }
+  to {
+    transform: none;
+    filter: none;
+  }
+}
+
+/* A beam runs under the scan field while a check is in progress. */
+.lx-scan__row {
+  position: relative;
+  overflow: hidden;
+}
+.lx-scan__row.is-loading::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, hsl(var(--accent)), transparent);
+  --sweep-end: 250%;
+  animation: lx-sweep var(--duration-sweep) var(--lx-ease-in-out) infinite;
+}
+
+/* Primary buttons catch a sweep of light on hover. */
+@media (hover: hover) and (pointer: fine) {
+  .lx-button--primary {
+    overflow: hidden;
+  }
+  .lx-button--primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, hsl(0 0% 100% / 0.35) 50%, transparent 65%);
+    transform: translateX(-120%);
+    pointer-events: none;
+  }
+  .lx-button--primary:hover::before {
+    transform: translateX(120%);
+    transition: transform 700ms var(--lx-ease-out);
+  }
+}
+
+/* Cards: a soft light follows the pointer (position set by useSpotlight). */
+@media (hover: hover) and (pointer: fine) {
+  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div) {
+    position: relative;
+  }
+  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), hsl(var(--accent) / 0.09), transparent 70%);
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease);
+    pointer-events: none;
+  }
+  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div):hover::after {
+    opacity: 1;
+  }
+}
+
+/* Plan action buttons lift slightly on hover. */
+@media (hover: hover) and (pointer: fine) {
+  .lx-plan > .lx-plan__action .lx-button {
+    transition: transform var(--duration-slow) var(--lx-ease-out), border-color var(--duration-base) var(--ease);
+  }
+}
+
+/* The theme and reduced motion: everything above settles to still. */
+@media (prefers-reduced-motion: reduce) {
+  .lx-roll,
+  .lx-scan__row.is-loading::after {
+    animation: none;
+  }
+  .lx-button--primary::before,
+  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
+    display: none;
+  }
+}

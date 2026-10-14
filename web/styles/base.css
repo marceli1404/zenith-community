@@ -1,0 +1,102 @@
+/*
+ * Base layer: self-hosted variable faces (OFL, no third-party requests, no CSP
+ * change), body typography, focus, selection, and the retired texture hooks.
+ */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/geist-mono-variable.woff2") format("woff2");
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html {
+  background-color: hsl(var(--bg));
+  scroll-padding-top: calc(var(--nav-height) + 32px);
+}
+
+body {
+  margin: 0;
+  background-color: hsl(var(--bg));
+  color: hsl(var(--text));
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  line-height: var(--leading-body);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+::selection {
+  background: hsl(var(--accent) / 0.28);
+  color: hsl(var(--text));
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 3px;
+  border-radius: var(--shape-xs);
+}
+
+/* Readings: tabular mono wherever numbers are compared. */
+.lx-numeric,
+[data-numeric] {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * The editorial paper, linen, travertine and ceramic textures are retired. The
+ * class hooks remain (pages still carry them) so they only establish a stacking
+ * context now.
+ */
+.tx-paper,
+.tx-linen,
+.tx-travertine,
+.tx-ceramic {
+  position: relative;
+  isolation: isolate;
+}
+
+/* Ambient page light: one faint lime falloff at the very top of public pages,
+   on a fixed layer so nothing repaints while scrolling. */
+.lx-site::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: 70vh;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(60% 55% at 70% -10%, hsl(var(--accent) / 0.07), transparent 70%);
+}

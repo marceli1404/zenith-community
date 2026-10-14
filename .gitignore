@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+playwright-report/
+test-results/
+node_modules/.tmp/
+*.tsbuildinfo
+artifacts/cinematic/
+# Visual-review screenshots are regenerated on demand — keep only latest locally,
+# never a binary history. The dir itself stays tracked via README + .gitkeep.
+artifacts/visual-review/*.png
+
+graphify-out/

@@ -1,0 +1,4 @@
+# Zenith Community. Operators should set their own canonical URL and sitemap.
+User-agent: *
+Allow: /
+Disallow: /api/

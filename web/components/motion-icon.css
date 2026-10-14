@@ -1,0 +1,80 @@
+.motion-icon{
+  display:inline-grid;
+  place-items:center;
+  flex:0 0 auto;
+  width:1em;
+  height:1em;
+  line-height:0;
+  transform-origin:center;
+}
+.motion-icon__glyph{
+  display:grid;
+  place-items:center;
+  transition:transform 240ms var(--lx-ease-out),opacity 180ms var(--lx-ease-out);
+  transform-origin:center;
+}
+.motion-icon__glyph>svg{display:block}
+.zenith-mark__point{
+  transform-box:fill-box;
+  transform-origin:center;
+  transition:transform 420ms var(--lx-ease-out);
+}
+.is-current>.motion-icon>.motion-icon__glyph,
+.settings-rail-link.is-active>.motion-icon>.motion-icon__glyph{
+  animation:icon-settle 420ms var(--lx-ease-out);
+}
+@keyframes icon-settle{
+  0%{transform:scale(.88);opacity:.68}
+  62%{transform:scale(1.06);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+@keyframes icon-alert{
+  0%,100%{transform:rotate(0)}
+  35%{transform:rotate(-7deg)}
+  68%{transform:rotate(5deg)}
+}
+@keyframes icon-bell{
+  0%,100%{transform:rotate(0)}
+  30%{transform:rotate(9deg)}
+  64%{transform:rotate(-7deg)}
+}
+@keyframes icon-refresh-active{to{transform:rotate(360deg)}}
+@keyframes icon-scan-active{
+  0%,100%{transform:translateY(-1px)}
+  50%{transform:translateY(1px)}
+}
+@media (prefers-reduced-motion:no-preference){
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="dashboard"]>.motion-icon__glyph{transform:scale(.92) rotate(-3deg)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="orbit"]>.motion-icon__glyph{transform:rotate(32deg) scale(1.04)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="scan"]>.motion-icon__glyph{transform:translateY(2px) scaleX(1.05)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="alert"]>.motion-icon__glyph{animation:icon-alert 420ms var(--lx-ease-out)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="document"]>.motion-icon__glyph{transform:translateY(-2px) rotate(-2deg)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="settings"]>.motion-icon__glyph{transform:rotate(38deg)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="payment"]>.motion-icon__glyph{transform:translateX(2px) rotate(1deg)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="search"]>.motion-icon__glyph{transform:translate(1px,-1px) scale(1.06)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="arrow"]>.motion-icon__glyph{transform:translate(2px,-2px)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="logout"]>.motion-icon__glyph{transform:translateX(2px)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="bell"]>.motion-icon__glyph{animation:icon-bell 460ms var(--lx-ease-out)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="shield"]>.motion-icon__glyph{transform:translateY(-1px) scale(1.05)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="user"]>.motion-icon__glyph{transform:translateY(-1px) scale(1.04)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="data"]>.motion-icon__glyph{transform:translateY(-1px)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="theme"]>.motion-icon__glyph{transform:rotate(28deg) scale(1.05)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="device"]>.motion-icon__glyph{transform:translateY(-1px)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="check"]>.motion-icon__glyph{transform:scale(1.12)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="download"]>.motion-icon__glyph{transform:translateY(2px)}
+  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="refresh"]>.motion-icon__glyph{transform:rotate(48deg)}
+  :is(a,button):is(:hover,:focus-visible) .zenith-mark__point{transform:translate(1.2px,-1.2px) scale(1.14)}
+}
+.motion-icon.is-active[data-motion="refresh"]>.motion-icon__glyph{animation:icon-refresh-active 900ms var(--lx-ease-in-out) infinite}
+.motion-icon.is-active[data-motion="scan"]>.motion-icon__glyph{animation:icon-scan-active 1.6s var(--lx-ease-in-out) infinite}
+@media (prefers-reduced-motion:reduce){
+  .motion-icon>.motion-icon__glyph,
+  .motion-icon.is-active>.motion-icon__glyph,
+  .is-current>.motion-icon>.motion-icon__glyph,
+  .settings-rail-link.is-active>.motion-icon>.motion-icon__glyph{
+    animation:none!important;
+    transition:none!important;
+    transform:none!important;
+  }
+  .zenith-mark__point{transition:none!important;transform:none!important}
+}

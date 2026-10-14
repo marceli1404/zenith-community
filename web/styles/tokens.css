@@ -1,0 +1,176 @@
+/*
+ * Zenith design tokens. The single source for colour, type, space, shape, depth,
+ * motion and layers. Components read these through classes; nothing hard-codes a
+ * colour or a gap.
+ *
+ * Direction: dark precision. Near-black instrument surfaces, one lime accent (the
+ * point at the top of the sky), Geist for words and Geist Mono for readings.
+ *
+ * Theme: dark is the default (`.dark` on <html>, set before paint by the inline
+ * boot script in index.html). Light mode is a full, first-class theme under :root.
+ *
+ * Colours are HSL triplets so Tailwind (`hsl(var(--x) / a)`) and our own CSS
+ * share them. Measured WCAG contrast against --bg:
+ *   dark   text 16.6 · muted 7.8 · subtle 6.1 · accent 15.3 · good 9.2 · warn 10.7 · bad 6.4
+ *   light  text 17.7 · muted 6.8 · subtle 5.8 · accent 5.4 · good 5.5 · warn 4.7 · bad 5.5
+ * Subtle stays above 5.4 on --surface-2. Button labels: ink on lime 15.3 (dark),
+ * white on deep lime 5.8 (light).
+ *
+ * Shape rule (one system, applied everywhere):
+ *   controls (buttons, inputs, chips, switches, nav) are full pills;
+ *   panels are 16px; anything nested inside a panel is 10px; code is 10px.
+ */
+
+:root {
+  /* ---- Raw palette ----------------------------------------------------------- */
+  --zx-ink: #0a0b0d;
+  --zx-lime: #c6f432;
+  --zx-lime-deep: #4a6e00;
+  --zx-snow: #ecedf0;
+
+  /* ---- Semantic colour: light -------------------------------------------------- */
+  --bg: 220 16% 97%;
+  --surface: 0 0% 100%;
+  --surface-2: 220 14% 94%;
+  --border: 220 12% 87%;
+  --text: 225 14% 7%;
+  --text-muted: 222 8% 35%;
+  --text-subtle: 222 7% 39%;
+  --accent: 81 100% 22%;          /* deep lime: text, links, focus on light */
+  --accent-fill: 81 100% 22%;     /* primary button fill on light */
+  --accent-fg: 0 0% 100%;
+  --accent-soft: 78 60% 90%;
+  --accent-2: 81 100% 17%;
+  --clay: 81 60% 26%;             /* legacy name: small accent ornaments */
+  --good: 150 60% 28%;
+  --warn: 32 90% 34%;
+  --bad: 3 70% 44%;
+
+  /* ---- Typography -------------------------------------------------------------- */
+  --font-body: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+  --font-serif: var(--font-body); /* legacy alias: the serif is retired */
+  --font-numeric: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --type-hero: clamp(2.75rem, 1.95rem + 3.4vw, 4.75rem);        /* 44 → 76 */
+  --type-page: clamp(2.25rem, 1.75rem + 2.3vw, 3.75rem);        /* 36 → 60 */
+  --type-section: clamp(2rem, 1.62rem + 1.7vw, 3rem);           /* 32 → 48 */
+  --type-title: clamp(1.125rem, 1.05rem + 0.35vw, 1.375rem);    /* 18 → 22 */
+  --type-lead: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);         /* 17 → 20 */
+  --type-body: 1rem;
+  --type-small: 0.9375rem;
+  --type-caption: 0.8125rem;
+  --type-label: 0.75rem;
+  --type-button: 0.9375rem;
+  --type-numeral: clamp(2.5rem, 2rem + 2.2vw, 3.75rem);
+
+  --weight-display: 600;
+  --weight-title: 560;
+  --leading-display: 1.02;
+  --leading-heading: 1.08;
+  --leading-body: 1.6;
+  --leading-caption: 1.45;
+  --tracking-display: -0.045em;
+  --tracking-heading: -0.032em;
+  --tracking-title: -0.018em;
+  --tracking-button: -0.005em;
+  --tracking-caption: 0;
+  --tracking-label: 0.08em;
+
+  /* ---- Space ------------------------------------------------------------------- */
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 48px;
+  --space-6: 72px;
+  --space-7: 112px;
+  --space-8: 160px;
+
+  /* ---- Layout ------------------------------------------------------------------ */
+  --container: 1200px;
+  --reading: 680px;
+  --gutter: clamp(16px, 4vw, 40px);
+  --grid-gap: clamp(12px, 1.6vw, 20px);
+  --nav-height: 64px;
+
+  /* ---- Shape --------------------------------------------------------------------- */
+  --shape-none: 0;
+  --shape-xs: 6px;
+  --shape-sm: 10px;
+  --shape-md: 16px;
+  --shape-lg: 20px;
+  --shape-pill: 999px;
+
+  /* ---- Borders --------------------------------------------------------------------- */
+  --border-hair: 1px solid hsl(var(--border));
+  --border-strong: 1px solid hsl(var(--text) / 0.16);
+  --border-clay: 1px solid hsl(var(--accent) / 0.4);
+
+  /* ---- Depth: tinted to the surface, never pure black on light ------------------- */
+  --highlight: inset 0 1px 0 hsl(0 0% 100% / 0.7);
+  --shadow-rest: 0 1px 2px hsl(225 20% 20% / 0.06);
+  --shadow-object: 0 1px 2px hsl(225 20% 20% / 0.06), 0 12px 32px -12px hsl(225 25% 20% / 0.18);
+  --shadow-sheet: 0 1px 2px hsl(225 20% 20% / 0.08), 0 40px 80px -32px hsl(225 30% 18% / 0.28);
+
+  /* ---- Opacity --------------------------------------------------------------------- */
+  --opacity-texture: 0;
+  --opacity-disabled: 0.45;
+  --opacity-quiet: 0.7;
+
+  /* ---- Motion ---------------------------------------------------------------------- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.5, 1);
+  --lx-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --lx-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --lx-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-press: 140ms;
+  --duration-quick: 180ms;
+  --duration-base: 260ms;
+  --duration-slow: 420ms;
+  --duration-reveal: 760ms; /* marketing reveals only, never app UI */
+  --duration-drift: 24s;
+  --duration-sweep: 1.4s;   /* every "working on it" beam */
+  --duration-shimmer: 1.4s; /* every skeleton placeholder */
+  --stagger: 60ms;
+
+  /* ---- Layers ---------------------------------------------------------------------- */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 40;
+  --z-nav: 50;
+  --z-overlay: 80;
+  --z-toast: 90;
+
+  /* ---- Tailwind theme bridges ------------------------------------------------------ */
+  --shadow-sm: var(--shadow-rest);
+  --shadow: 0 6px 18px -8px hsl(225 25% 20% / 0.18);
+  --shadow-lg: var(--shadow-object);
+}
+
+.dark {
+  --bg: 225 11% 4.5%;
+  --surface: 225 9% 7%;
+  --surface-2: 225 8% 10%;
+  --border: 225 7% 16%;
+  --text: 230 12% 93%;
+  --text-muted: 228 5% 65%;
+  --text-subtle: 228 4% 57%;
+  --accent: 75 90% 57%;
+  --accent-fill: 75 90% 57%;
+  --accent-fg: 225 11% 4.5%;
+  --accent-soft: 75 40% 11%;
+  --accent-2: 75 95% 67%;
+  --clay: 75 55% 72%;
+  --good: 150 55% 52%;
+  --warn: 38 92% 60%;
+  --bad: 3 85% 66%;
+
+  --highlight: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  --shadow-rest: 0 1px 0 hsl(0 0% 0% / 0.4);
+  --shadow-object: 0 1px 0 hsl(0 0% 0% / 0.4), 0 24px 48px -24px hsl(0 0% 0% / 0.7);
+  --shadow-sheet: 0 1px 0 hsl(0 0% 0% / 0.5), 0 60px 120px -40px hsl(0 0% 0% / 0.85);
+  --shadow: 0 6px 18px -8px hsl(0 0% 0% / 0.6);
+
+  color-scheme: dark;
+}

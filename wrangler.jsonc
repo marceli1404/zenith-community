@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "zenith-community",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "browser": {
+    "binding": "BROWSER"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zenith-community"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "REPORTS_BUCKET",
+      "bucket_name": "zenith-community-reports"
+    }
+  ],
+  "queues": {
+    "producers": [
+      { "binding": "MONITOR_QUEUE", "queue": "zenith-monitor" },
+      { "binding": "AUDIT_QUEUE", "queue": "zenith-audit" },
+      { "binding": "EMAIL_QUEUE", "queue": "zenith-email" }
+    ],
+    "consumers": [
+      { "queue": "zenith-monitor", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 },
+      { "queue": "zenith-audit", "max_batch_size": 5, "max_batch_timeout": 5, "max_retries": 3 },
+      { "queue": "zenith-email", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "PUBLIC_SCAN_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ],
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "APP_NAME": "Zenith Community",
+    "APP_URL": "http://localhost:5173",
+    "ENVIRONMENT": "development",
+    "EMAIL_FROM": ""
+  }
+}

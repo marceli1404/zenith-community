@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en-GB" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0a0b0d" />
+    <!-- Applies the saved colour theme and picks the boot frame before the first
+         paint. Inline, because as a separate file it was a render-blocking
+         request in front of every page. Written on one line on purpose: the CSP
+         whitelists its sha256 (src/middleware.ts and public/_headers), and
+         test/unit/inline-script-csp.test.ts fails if reformatting changes it. -->
+    <script>(function(){var t="dark";try{t=localStorage.getItem("wh-theme")||"dark"}catch(e){}var d=t==="dark"||t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches,r=document.documentElement,p=location.pathname;r.classList.toggle("dark",d);r.setAttribute("data-boot",/^\/app(\/|$)/.test(p)?"app":/^\/(login|signup|forgot-password|reset-password|verify-email)(\/|$)/.test(p)?"auth":"public")})()</script>
+    <!-- Loading frames. Inline so they paint before any stylesheet or script:
+         the page background, the boot frame inside #root, and the in-between
+         frames React shows while a route or its data loads (same classes). -->
+    <style id="zenith-frames">
+      :root{--zf-bg:#f6f7f9;--zf-surface:#fff;--zf-line:#dcdfe4;--zf-base:#eceef2;--zf-hi:#e1e4ea;--zf-accent:#4a6e00;color-scheme:light}
+      .dark{--zf-bg:#0a0b0d;--zf-surface:#101113;--zf-line:#25272b;--zf-base:#16171a;--zf-hi:#202226;--zf-accent:#c6f432;color-scheme:dark}
+      html,body{background:var(--zf-bg);margin:0}
+      .zf-boot>.zf{display:none}
+      html:not([data-boot=app]):not([data-boot=auth]) .zf-boot>.zf-public,html[data-boot=app] .zf-boot>.zf-app,html[data-boot=auth] .zf-boot>.zf-auth{display:flex}
+      .zf{box-sizing:border-box;min-height:100vh;width:100%;background:var(--zf-bg)}
+      .zf *{box-sizing:border-box}
+      .zf-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+      .zf-b{display:block;height:12px;border-radius:999px;background:linear-gradient(90deg,var(--zf-base) 0,var(--zf-hi) 50%,var(--zf-base) 100%);background-size:200% 100%;animation:zf-shine 1.4s linear infinite}
+      .zf-b.h1{height:clamp(34px,5vw,64px);border-radius:14px}
+      .zf-b.h2{height:30px;border-radius:10px}
+      .zf-b.pill{height:40px;width:112px}
+      .zf-b.dot{width:36px;height:36px;border-radius:50%}
+      .zf-mark{width:28px;height:28px;flex:none;color:var(--zf-accent);animation:zf-pulse 1.6s ease-in-out infinite}
+      .w90{width:90%}.w75{width:75%}.w60{width:60%}.w50{width:50%}.w40{width:40%}.w30{width:30%}.w20{width:20%}
+      .zf-panel{display:grid;align-content:start;gap:14px;min-height:240px;padding:28px;border:1px solid var(--zf-line);border-radius:16px;background:var(--zf-surface)}
+      .zf-panel.tall{min-height:360px}
+      .zf-panel.short{min-height:120px}
+      .zf-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+      .zf-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+      .zf-public{flex-direction:column;padding:12px clamp(16px,4vw,40px) 64px}
+      .zf-nav{display:flex;align-items:center;gap:16px;width:100%;max-width:1200px;height:64px;margin:0 auto;padding:0 16px}
+      .zf-nav .zf-b{height:14px}
+      .zf-nav .grow{flex:1}
+      .zf-hero{display:grid;gap:18px;width:100%;max-width:1200px;margin:clamp(56px,10vh,120px) auto 0}
+      .zf-hero .zf-panel{margin-top:40px;min-height:320px}
+      .zf-app{align-items:stretch}
+      .zf-side{display:flex;flex-direction:column;gap:14px;width:264px;flex:none;padding:22px 16px;border-right:1px solid var(--zf-line);background:var(--zf-surface)}
+      .zf-side .zf-mark{margin:0 8px 18px}
+      .zf-side .zf-b{height:14px;margin:6px 12px}
+      .zf-side .foot{margin-top:auto;height:56px;border-radius:16px}
+      .zf-work{flex:1;min-width:0;display:flex;flex-direction:column}
+      .zf-top{height:72px;flex:none;border-bottom:1px solid var(--zf-line)}
+      .zf-main{display:grid;gap:24px;width:100%;max-width:1320px;margin:0 auto;padding:48px clamp(20px,3.6vw,56px)}
+      .zf-page{display:grid;gap:24px}
+      .zf-head{display:grid;gap:14px;margin-bottom:16px}
+      .zf-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-top:1px solid var(--zf-line)}
+      .zf-row .zf-b{height:12px}
+      .zf-auth{align-items:center;justify-content:center;padding:24px}
+      .zf-card{display:grid;gap:16px;width:min(440px,100%);padding:32px;border:1px solid var(--zf-line);border-radius:20px;background:var(--zf-surface)}
+      .zf-card .zf-mark{margin-bottom:8px}
+      .zf-card .field{height:44px}
+      .zf-settings{display:grid;grid-template-columns:232px minmax(0,1fr);gap:32px;align-items:start}
+      .zf-progress{position:fixed;inset:0 0 auto 0;z-index:200;height:2px;pointer-events:none;background:var(--zf-accent);transform-origin:left;transform:scaleX(0);animation:zf-progress 9s cubic-bezier(.08,.7,.1,1) forwards}
+      .zf-progress.done{animation:zf-progress-done .32s ease-out forwards}
+      @keyframes zf-shine{from{background-position:100% 0}to{background-position:-100% 0}}
+      @keyframes zf-pulse{50%{transform:scale(.9)}}
+      @keyframes zf-progress{from{transform:scaleX(0)}to{transform:scaleX(.92)}}
+      @keyframes zf-progress-done{from{transform:scaleX(.92)}to{transform:scaleX(1);opacity:0}}
+      @media (max-width:1080px){.zf-side{width:76px}.zf-side .zf-b{margin:6px 4px}.zf-settings{grid-template-columns:minmax(0,1fr)}}
+      @media (max-width:760px){.zf-side{display:none}.zf-top{height:64px}.zf-main{padding:28px 16px}.zf-grid,.zf-grid.three{grid-template-columns:minmax(0,1fr)}.zf-panel{padding:20px}}
+      @media (prefers-reduced-motion:reduce){.zf-b,.zf-mark{animation:none}.zf-progress{animation-duration:.01ms}}
+    </style>
+    <title>Zenith Community — self-hosted website monitoring</title>
+    <meta
+      name="description"
+      content="Self-hosted website monitoring and audits. Operate your own instance to check uptime, review technical findings, and keep an audit history."
+    />
+    <meta name="application-name" content="Zenith" />
+    <meta name="apple-mobile-web-app-title" content="Zenith" />
+    <meta property="og:site_name" content="Zenith" />
+    <meta property="og:locale" content="en_GB" />
+    <meta property="og:title" content="Zenith Community — self-hosted website monitoring" />
+    <meta property="og:description" content="Operate your own instance to check uptime, review technical findings, and keep an audit history." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Zenith Community — self-hosted website monitoring" />
+    <meta name="twitter:description" content="Operate your own instance to check uptime, review technical findings, and keep an audit history." />
+    <meta name="twitter:image" content="/og.png" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <!-- One variable face covers every weight, so a single preload renders the hero
+         headline and body in Geist on first paint (less swap, less CLS). -->
+    <link rel="preload" href="/fonts/geist-variable.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <div id="root"><div class="zf-boot" data-boot-frame>
+      <p class="zf-sr" role="status">Loading Zenith</p>
+      <div class="zf zf-public" aria-hidden="true">
+        <div class="zf-nav"><svg class="zf-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 25.5a11 11 0 0 1 22 0" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><circle cx="16" cy="14.5" r="3.4" fill="currentColor"/></svg><span class="zf-b w20"></span><span class="grow"></span><span class="zf-b pill"></span></div>
+        <div class="zf-hero"><span class="zf-b h1 w60"></span><span class="zf-b h1 w40"></span><span class="zf-b w50"></span><span class="zf-b w40"></span><div class="zf-panel"><span class="zf-b w30"></span><span class="zf-b w75"></span><span class="zf-b w60"></span></div></div>
+      </div>
+      <div class="zf zf-app" aria-hidden="true">
+        <div class="zf-side"><svg class="zf-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 25.5a11 11 0 0 1 22 0" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><circle cx="16" cy="14.5" r="3.4" fill="currentColor"/></svg><span class="zf-b w60"></span><span class="zf-b w50"></span><span class="zf-b w60"></span><span class="zf-b w40"></span><span class="zf-b w50"></span><span class="zf-b foot"></span></div>
+        <div class="zf-work"><div class="zf-top"></div><div class="zf-main"><div class="zf-head"><span class="zf-b h2 w30"></span><span class="zf-b w40"></span></div><div class="zf-grid"><div class="zf-panel tall"><span class="zf-b w30"></span><span class="zf-b w75"></span></div><div class="zf-panel tall"><span class="zf-b w40"></span><span class="zf-b w90"></span></div></div></div></div>
+      </div>
+      <div class="zf zf-auth" aria-hidden="true">
+        <div class="zf-card"><svg class="zf-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 25.5a11 11 0 0 1 22 0" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/><circle cx="16" cy="14.5" r="3.4" fill="currentColor"/></svg><span class="zf-b h2 w60"></span><span class="zf-b w75"></span><span class="zf-b field"></span><span class="zf-b field"></span><span class="zf-b field"></span></div>
+      </div>
+    </div></div>
+    <!-- Content for non-JS crawlers and social scrapers (the app renders the full
+         interactive experience for everyone else). -->
+    <noscript>
+      <main style="max-width:720px;margin:0 auto;padding:48px 20px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1d23">
+        <h1>Zenith Community</h1>
+        <p>Self-hosted website monitoring and audits. Operate your own instance to check uptime, review technical findings, and keep an audit history.</p>
+        <h2>Community edition</h2>
+        <ul>
+          <li>Scheduled uptime checks and incident history</li>
+          <li>Website audits with findings and recommendations</li>
+          <li>Reports and account data controls</li>
+        </ul>
+        <p>You provide and operate the Cloudflare resources and email delivery for your installation.</p>
+        <p><a href="/login">Log in</a></p>
+      </main>
+    </noscript>
+    <script type="module" src="/web/main.tsx"></script>
+  </body>
+</html>

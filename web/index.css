@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/components.css";
+@import "./styles/pages.css";
+@import "./styles/motion.css";
+@import "./styles/scroll.css";
+@import "./styles/auth.css";
+@import "./styles/scan-report.css";
+@import "./observatory.css";
+
+/*
+ * Zenith design system. Colour, type, space and motion tokens live in
+ * styles/tokens.css; base typography in styles/base.css; public-site components in
+ * styles/components.css and styles/pages.css; motion in styles/motion.css. The
+ * logged-in app keeps its Tailwind layout but reads the same semantic tokens
+ * through the theme below. Dark by default via the `.dark` class on <html>.
+ */
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Console radii follow the site's shape rule: nested controls 10px, panels 16px. */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+}
+
+@theme inline {
+  --color-bg: hsl(var(--bg));
+  --color-surface: hsl(var(--surface));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-border: hsl(var(--border));
+  --color-text: hsl(var(--text));
+  --color-muted: hsl(var(--text-muted));
+  --color-subtle: hsl(var(--text-subtle));
+  --color-accent: hsl(var(--accent));
+  --color-accent-fg: hsl(var(--accent-fg));
+  --color-accent-soft: hsl(var(--accent-soft));
+  --color-accent-2: hsl(var(--accent-2));
+  --color-good: hsl(var(--good));
+  --color-warn: hsl(var(--warn));
+  --color-bad: hsl(var(--bad));
+  --color-clay: hsl(var(--clay));
+}
+
+/* Base typography, focus and reduced-motion live in styles/base.css. */
+
+/* A calm opacity settle for content that genuinely arrives (scan results, route
+   content). No slide: the brief rules out fade-up motion. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-in {
+  animation: fade-in var(--duration-base) var(--ease) both;
+}
+
+/* --- Dashboard polish ------------------------------------------------------ */
+
+/* Route content enters; the shell chrome and navigation stay put. `backwards`
+   and a `transform: none` endpoint for the same reason as the auth entry: no
+   composited layer is retained once the 180ms window closes, so settled text
+   renders exactly as it does statically. */
+.route-enter { animation: route-in var(--duration-quick) var(--lx-ease-out) backwards; }
+@keyframes route-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Interactive-card feedback extends the site row that already exists in
+   observatory.css (which changes its border on hover/focus-within) with the
+   1px lift, rather than introducing a second, competing class. Static statistic
+   cards get nothing — they must not imply clickability. */
+.site-row { transition: border-color var(--duration-quick) var(--ease), background var(--duration-quick) var(--ease), transform var(--duration-quick) var(--lx-ease-out); }
+@media (prefers-reduced-motion: no-preference) {
+  .site-row:focus-within { transform: translateY(-1px); }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .site-row:hover { transform: translateY(-1px); }
+}
+
+/* A count or score that genuinely changed gets one quiet 260ms acknowledgement. */
+.value-changed { animation: value-settle var(--duration-base) var(--lx-ease-out) backwards; }
+@keyframes value-settle {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+/* A newly arrived row enters once: 180ms, 4px, then nothing further. */
+.result-enter { animation: result-in var(--duration-quick) var(--lx-ease-out) backwards; }
+@keyframes result-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-enter, .value-changed, .result-enter, .site-row { animation: none !important; }
+  .route-enter, .result-enter { opacity: 1; transform: none; }
+  .value-changed { opacity: 1; }
+  .site-row:hover, .site-row:focus-within { transform: none; }
+}
+
+/* Cookie-consent banner (Consent Mode v2). Fixed, unobtrusive, equal-weight
+ * choices — no dark patterns. Sits above content but never traps focus. */
+.consent-banner {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 60;
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.consent-banner__inner {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 60rem;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 30px -12px rgb(0 0 0 / 0.35);
+  padding: 14px 16px;
+}
+.consent-banner__copy { flex: 1 1 260px; min-width: 0; }
+.consent-banner__title { font-size: 14px; font-weight: 600; color: hsl(var(--text)); }
+.consent-banner__text { font-size: 13px; color: hsl(var(--text-muted)); margin-top: 2px; line-height: 1.5; }
+.consent-banner__link { color: hsl(var(--accent)); text-decoration: underline; text-underline-offset: 2px; }
+.consent-banner__actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.consent-btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s, border-color .15s, color .15s;
+}
+.consent-btn--ghost {
+  background: transparent;
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--text-muted));
+}
+.consent-btn--ghost:hover { color: hsl(var(--text)); border-color: hsl(var(--text) / 0.4); }
+.consent-btn--primary {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-fg));
+  border: 1px solid transparent;
+}
+.consent-btn--primary:hover { background: hsl(var(--accent-2)); }
+.consent-btn:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+.consent-banner:focus { outline: none; }
+.consent-banner:focus-visible .consent-banner__inner { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }

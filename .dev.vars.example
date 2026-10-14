@@ -1,0 +1,2 @@
+# Local development only. Generate a unique value before creating accounts.
+BETTER_AUTH_SECRET=replace-with-a-long-random-local-secret

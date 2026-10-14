@@ -1,0 +1,710 @@
+/* Settings: a rail of sections beside one panel. Layout pieces come from
+   dashboard.css (cn-*). */
+
+.settings-page {
+  min-width: 0;
+}
+.settings-account-chip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  padding: 8px 18px 8px 8px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface));
+}
+.settings-account-chip > span,
+.settings-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: hsl(var(--accent-fill));
+  color: hsl(var(--accent-fg));
+  font-weight: 600;
+}
+.settings-account-chip > span {
+  width: 40px;
+  height: 40px;
+}
+.settings-account-chip > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.settings-account-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.settings-account-chip small {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+}
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.settings-rail {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: var(--border-hair);
+  border-radius: var(--shape-md);
+  background: hsl(var(--surface));
+}
+.settings-rail-link {
+  display: grid;
+  grid-template-columns: 20px 1fr 16px;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--shape-pill);
+  background: transparent;
+  color: hsl(var(--text-muted));
+  font: inherit;
+  font-size: var(--type-small);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--duration-quick) var(--ease), background-color var(--duration-quick) var(--ease);
+}
+.settings-rail-link > .motion-icon:last-child {
+  opacity: 0;
+  transform: translateX(-3px);
+  transition: opacity var(--duration-quick) var(--ease), transform var(--duration-base) var(--lx-ease-out);
+}
+.settings-rail-link:hover {
+  color: hsl(var(--text));
+  background: hsl(var(--surface-2));
+}
+.settings-rail-link.is-active {
+  color: hsl(var(--text));
+  background: hsl(var(--accent-soft));
+}
+.settings-rail-link.is-active > .motion-icon:first-child {
+  color: hsl(var(--accent));
+}
+.settings-rail-link.is-active > .motion-icon:last-child {
+  opacity: 1;
+  transform: none;
+}
+
+.settings-content {
+  min-width: 0;
+  display: grid;
+  gap: 24px;
+}
+.settings-section {
+  animation: settings-section-in 260ms var(--lx-ease-out) backwards;
+}
+@keyframes settings-section-in {
+  from { transform: translateY(6px); }
+  to { transform: none; }
+}
+.settings-section-head {
+  padding-bottom: 20px;
+}
+.settings-section-head h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.settings-section-head p {
+  margin-top: 6px;
+  color: hsl(var(--text-muted));
+}
+.settings-section-body {
+  border-top: var(--border-hair);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 84px;
+  padding: 20px 0;
+}
+.settings-row + .settings-row,
+.settings-subsection + .settings-subsection,
+.settings-profile + .settings-row,
+.settings-row + .settings-footnote,
+.settings-row + .settings-meta-row {
+  border-top: var(--border-hair);
+}
+.settings-row > div:first-child {
+  min-width: 0;
+}
+.settings-row strong,
+.settings-danger strong {
+  font-weight: 500;
+}
+.settings-row p,
+.settings-danger p {
+  margin-top: 4px;
+  max-width: 60ch;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  line-height: 1.55;
+}
+.settings-row-stacked {
+  display: grid;
+  justify-content: stretch;
+  gap: 16px;
+}
+
+.settings-profile {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px 20px;
+  padding: 24px 0;
+}
+.settings-avatar {
+  width: 52px;
+  height: 52px;
+  align-self: center;
+  font-size: 1.125rem;
+}
+.settings-profile-fields {
+  /* Grid items default to a min-width equal to their content's min-content
+   * size, which can overflow the "auto"-sized Save button column next to
+   * it (settings-profile's 3rd track) and visually overlap it. min-width: 0
+   * lets this shrink and its own ellipsis rules below take over instead. */
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.25fr);
+  gap: 16px;
+}
+.settings-profile-fields label {
+  display: grid;
+  gap: 8px;
+}
+.settings-profile-fields label > span {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  font-weight: 500;
+}
+.settings-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px 0 20px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text-muted));
+  font-size: var(--type-small);
+}
+.settings-readonly > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.settings-readonly small {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--shape-pill);
+  background: hsl(var(--good) / 0.12);
+  color: hsl(var(--cn-good-ink));
+  font-size: var(--type-label);
+  white-space: nowrap;
+}
+
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.settings-theme-option {
+  display: grid;
+  grid-template-columns: 44px 1fr 16px;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--bg) / 0.5);
+  color: hsl(var(--text-muted));
+  font: inherit;
+  font-size: var(--type-small);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-quick) var(--ease), background-color var(--duration-quick) var(--ease), color var(--duration-quick) var(--ease);
+}
+.settings-theme-option:hover {
+  border-color: hsl(var(--text) / 0.24);
+  color: hsl(var(--text));
+}
+.settings-theme-option.is-selected {
+  border-color: hsl(var(--accent) / 0.55);
+  background: hsl(var(--accent-soft));
+  color: hsl(var(--text));
+  font-weight: 500;
+}
+.settings-theme-option.is-selected > .motion-icon:last-child {
+  color: hsl(var(--accent));
+}
+.settings-theme-preview {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: var(--border-hair);
+  border-radius: var(--shape-sm);
+}
+.settings-theme-preview.is-light { background: #f6f7f9; color: #4a6e00; }
+.settings-theme-preview.is-dark { background: #0a0b0d; color: #c6f432; }
+.settings-theme-preview.is-system { background: linear-gradient(135deg, #f6f7f9 49.5%, #0a0b0d 50.5%); color: hsl(var(--accent)); }
+
+.settings-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 0 0;
+  border-top: var(--border-hair);
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+.settings-meta-row strong {
+  color: hsl(var(--text));
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-switch {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 28px;
+  padding: 0;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface-2));
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease), border-color var(--duration-quick) var(--ease);
+}
+.settings-switch span {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: hsl(var(--text-subtle));
+  transition: transform var(--duration-base) var(--lx-ease-out), background-color var(--duration-quick) var(--ease);
+}
+.settings-switch[aria-checked="true"] {
+  border-color: hsl(var(--accent-fill));
+  background: hsl(var(--accent-fill));
+}
+.settings-switch[aria-checked="true"] span {
+  background: hsl(var(--accent-fg));
+  transform: translateX(20px);
+}
+.settings-switch:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.settings-footnote {
+  padding: 16px 0 0;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  line-height: 1.55;
+}
+
+.settings-subsection {
+  padding: 24px 0;
+}
+.settings-subsection:last-child {
+  padding-bottom: 0;
+}
+.settings-subsection > h3,
+.settings-subsection-title h3 {
+  font-size: var(--type-body);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.settings-subsection > .settings-row {
+  padding-inline: 0;
+}
+.settings-subsection-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+.settings-subsection-title p {
+  margin-top: 4px;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+
+.settings-method {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.settings-method > .motion-icon,
+.settings-provider-mark {
+  color: hsl(var(--accent));
+}
+.settings-method > .motion-icon {
+  box-sizing: content-box;
+  padding: 9px;
+  border-radius: 50%;
+  background: hsl(var(--surface-2));
+}
+.settings-provider-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: hsl(var(--surface-2));
+  font-size: var(--type-caption);
+  font-weight: 600;
+}
+
+.settings-text-action,
+.settings-session button {
+  border: 0;
+  background: none;
+  color: hsl(var(--accent));
+  font: inherit;
+  font-size: var(--type-caption);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.settings-text-action:hover,
+.settings-session button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.settings-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 11px;
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text-muted));
+  font-size: var(--type-label);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.settings-state.is-connected {
+  background: hsl(var(--good) / 0.12);
+  color: hsl(var(--cn-good-ink));
+}
+
+.settings-session-list {
+  display: grid;
+}
+.settings-session {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 12px 0;
+  border-top: var(--border-hair);
+}
+.settings-session > .motion-icon {
+  box-sizing: content-box;
+  padding: 11px;
+  border-radius: 50%;
+  background: hsl(var(--surface-2));
+  color: hsl(var(--text-muted));
+}
+.settings-session > div {
+  display: grid;
+  gap: 3px;
+}
+.settings-session strong {
+  font-weight: 500;
+}
+.settings-session span {
+  font-size: var(--type-caption);
+  color: hsl(var(--text-muted));
+}
+.settings-session .settings-state {
+  font-size: var(--type-label);
+}
+.settings-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: hsl(var(--good));
+}
+
+.settings-plan {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 0 0;
+}
+.settings-plan > div {
+  display: grid;
+  gap: 6px;
+}
+.settings-plan > div:last-child {
+  justify-items: end;
+}
+.settings-plan span {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+.settings-plan strong {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  text-transform: capitalize;
+}
+.settings-plan p {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+  text-transform: capitalize;
+}
+.settings-credit {
+  color: hsl(var(--good)) !important;
+}
+
+.settings-button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: hsl(var(--surface));
+  color: hsl(var(--text));
+  font-size: var(--type-small);
+  font-weight: 500;
+  text-decoration: none;
+  transition: border-color var(--duration-quick) var(--ease), background-color var(--duration-quick) var(--ease);
+}
+.settings-button-link:hover {
+  border-color: hsl(var(--text) / 0.24);
+  background: hsl(var(--surface-2));
+}
+
+.settings-danger {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-top: 20px;
+  padding: 20px 24px;
+  border: 1px solid hsl(var(--bad) / 0.35);
+  border-radius: var(--shape-sm);
+  background: hsl(var(--bad) / 0.05);
+}
+.settings-danger strong {
+  color: hsl(var(--bad));
+}
+
+.settings-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  min-height: 44px;
+  padding: 0 20px;
+  border: var(--border-hair);
+  border-radius: var(--shape-pill);
+  background: transparent;
+  color: hsl(var(--text-muted));
+  font: inherit;
+  font-size: var(--type-small);
+  cursor: pointer;
+}
+.settings-signout:hover {
+  color: hsl(var(--text));
+  background: hsl(var(--surface-2));
+}
+
+.settings-load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border: 1px solid hsl(var(--warn) / 0.35);
+  border-radius: var(--shape-md);
+  background: hsl(var(--warn) / 0.06);
+}
+.settings-load-error > div {
+  display: grid;
+  gap: 4px;
+}
+.settings-load-error span,
+.settings-inline-error {
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
+.settings-inline-error {
+  padding: 24px 0 0;
+}
+.settings-inline-error a {
+  color: hsl(var(--accent));
+}
+
+.settings-skeleton {
+  display: block;
+  border-radius: var(--shape-sm);
+  background: linear-gradient(90deg, hsl(var(--surface-2)) 0%, hsl(var(--border)) 50%, hsl(var(--surface-2)) 100%);
+  background-size: 200% 100%;
+  animation: lx-shimmer var(--duration-shimmer) linear infinite;
+}
+.settings-skeleton.is-title { width: 220px; height: 36px; }
+.settings-skeleton.is-copy { width: 340px; max-width: 80vw; height: 14px; margin-top: 12px; }
+.settings-skeleton.is-block { height: 240px; margin-top: 24px; }
+.settings-rail-skeleton { height: 260px; }
+.settings-plan-skeleton {
+  height: 108px;
+  margin-top: 24px;
+  border-radius: var(--shape-sm);
+  background: linear-gradient(90deg, hsl(var(--surface-2)) 0%, hsl(var(--border)) 50%, hsl(var(--surface-2)) 100%);
+  background-size: 200% 100%;
+  animation: lx-shimmer var(--duration-shimmer) linear infinite;
+}
+
+@media (max-width: 1080px) {
+  .settings-layout {
+    grid-template-columns: 200px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .settings-profile {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+  .settings-profile-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-profile > button {
+    grid-column: 2;
+    width: max-content;
+  }
+  .settings-theme-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-account-chip {
+    display: none;
+  }
+  .settings-layout {
+    display: block;
+  }
+  .settings-rail {
+    position: sticky;
+    z-index: 10;
+    top: 64px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    margin: 0 -16px 20px;
+    padding: 8px 16px;
+    border: 0;
+    border-bottom: var(--border-hair);
+    border-radius: 0;
+    background: hsl(var(--bg) / 0.94);
+    backdrop-filter: blur(10px);
+    scrollbar-width: none;
+    /* Edge-fade affordance: masks the visible edges of the scroll box
+     * itself (not its scrolled content), so it always hints there's more
+     * to scroll to without needing extra markup around it. */
+    -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 16px), transparent);
+  }
+  .settings-rail::-webkit-scrollbar {
+    display: none;
+  }
+  .settings-rail-link {
+    flex: 0 0 auto;
+    display: flex;
+    min-height: 40px;
+  }
+  .settings-rail-link > .motion-icon:last-child {
+    display: none;
+  }
+  .settings-profile {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-avatar {
+    display: none;
+  }
+  .settings-profile > button {
+    grid-column: auto;
+    width: 100%;
+  }
+  .settings-row {
+    gap: 16px;
+  }
+  .settings-subsection-title {
+    display: grid;
+  }
+  .settings-subsection-title button {
+    width: max-content;
+  }
+  .settings-session {
+    grid-template-columns: 40px 1fr;
+  }
+  .settings-session > .settings-state,
+  .settings-session > button {
+    grid-column: 2;
+    width: max-content;
+  }
+  .settings-plan,
+  .settings-danger {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .settings-plan > div:last-child {
+    justify-items: start;
+  }
+  .settings-button-link,
+  .settings-danger button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-section {
+    animation: none;
+  }
+  .settings-rail-link > .motion-icon:last-child,
+  .settings-theme-option,
+  .settings-switch,
+  .settings-switch span,
+  .settings-button-link {
+    transition: none;
+  }
+}

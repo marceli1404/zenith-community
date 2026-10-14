@@ -1,0 +1,15 @@
+# Cloudflare Assets custom headers, applied to statically-served responses
+# (the SPA document and its assets bypass the Worker, so security headers for
+# them must be declared here). API responses get headers from the Worker
+# middleware. The only external script source currently used is Cloudflare Turnstile.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://challenges.cloudflare.com 'sha256-Z3wYmdNU4UiVlWYpmBPKoK/Ypw28r1fAZMTOn+DS/us=' 'sha256-gMFxjGDHSHfU9H1G4PpYauNI6M04ney4uoHual7FuVo='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+
+# Long-cache fingerprinted assets.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

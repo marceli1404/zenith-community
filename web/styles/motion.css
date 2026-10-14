@@ -1,0 +1,447 @@
+/*
+ * Motion for the public site. Every rule here has a job:
+ *
+ *   entrance   page hero copy settles once per page (rare → a little generosity)
+ *   reveal     sections below the fold rise once as they arrive (occasional)
+ *   feedback   pressables scale on press (frequent → fast and subtle)
+ *   state      menu, theme glyph, copy confirmation, contents marker
+ *
+ * Only transform and opacity move. Hover motion is gated to fine pointers.
+ * Reduced motion keeps opacity changes, removes movement (see the end).
+ */
+
+/* ---------------------------------------------------------------- Entrance */
+
+@keyframes lx-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lx-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lx-enter > * {
+  animation: lx-rise var(--duration-reveal) var(--lx-ease-out) backwards;
+}
+.lx-enter > :nth-child(1) { animation-delay: 40ms; }
+.lx-enter > :nth-child(2) { animation-delay: 110ms; }
+.lx-enter > :nth-child(3) { animation-delay: 180ms; }
+.lx-enter > :nth-child(4) { animation-delay: 250ms; }
+.lx-enter > :nth-child(5) { animation-delay: 320ms; }
+.lx-enter--late > * { animation-delay: 260ms; }
+
+/* The home hero: the lead and the form rise in around the headline.
+ *
+ * The headline itself is deliberately not animated. It is the Largest
+ * Contentful Paint element, and an element that starts at opacity 0 does not
+ * count as painted until it has faded up: entering it cost ~300ms of LCP on
+ * mobile, and far more once Lighthouse attributed that later paint to the entry
+ * script. It is also the one thing on the page the visitor is actually waiting
+ * for, so it should simply be there. */
+.lx-hero__aside > * {
+  animation: lx-rise var(--duration-reveal) var(--lx-ease-out) backwards;
+}
+.lx-hero__aside > :nth-child(1) { animation-delay: 140ms; }
+.lx-hero__aside > :nth-child(2) { animation-delay: 220ms; }
+.lx-hero__aside > :nth-child(3) { animation-delay: 300ms; }
+
+/* ---------------------------------------------------------------- Reveal */
+
+/* `is-pending` is only ever added by JS to content below the fold, so the
+   prerendered page and no-JS visitors always see everything. */
+[data-reveal]:not([data-reveal="section"]):not([data-reveal="stagger"]).is-pending,
+[data-reveal="section"].is-pending > *,
+[data-reveal="stagger"].is-pending > * {
+  opacity: 0;
+  transform: translateY(18px);
+}
+[data-reveal]:not([data-reveal="section"]):not([data-reveal="stagger"]).is-pending.is-revealed,
+[data-reveal="section"].is-pending.is-revealed > *,
+[data-reveal="stagger"].is-pending.is-revealed > * {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--duration-reveal) var(--lx-ease-out),
+    transform var(--duration-reveal) var(--lx-ease-out);
+}
+[data-reveal="stagger"].is-revealed > :nth-child(2) { transition-delay: calc(var(--stagger) * 1); }
+[data-reveal="stagger"].is-revealed > :nth-child(3) { transition-delay: calc(var(--stagger) * 2); }
+[data-reveal="stagger"].is-revealed > :nth-child(4) { transition-delay: calc(var(--stagger) * 3); }
+[data-reveal="stagger"].is-revealed > :nth-child(5) { transition-delay: calc(var(--stagger) * 4); }
+[data-reveal="stagger"].is-revealed > :nth-child(6) { transition-delay: calc(var(--stagger) * 5); }
+[data-reveal="stagger"].is-revealed > :nth-child(n + 7) { transition-delay: calc(var(--stagger) * 6); }
+
+/* Sticky and full-bleed children must not keep a transform once settled. */
+[data-reveal="section"].is-revealed > * {
+  will-change: auto;
+}
+
+/* ---------------------------------------------------------------- Feedback */
+
+.lx-button:active:not(:disabled),
+.lx-chip:active,
+.lx-iconbutton:active,
+.lx-code__copy:active,
+.lx-gallery__control:active,
+.lx-switch__control:active {
+  transform: scale(0.97);
+}
+.lx-iconbutton,
+.lx-chip {
+  transition-property: background-color, color, border-color, transform;
+  transition-duration: var(--duration-quick), var(--duration-quick), var(--duration-quick), var(--duration-press);
+  transition-timing-function: var(--ease), var(--ease), var(--ease), var(--lx-ease-out);
+}
+.lx-accordion__trigger:active .lx-accordion__title {
+  opacity: 0.7;
+}
+
+/* Footer links nudge on hover. */
+@media (hover: hover) and (pointer: fine) {
+  .lx-footer__col a {
+    display: inline-block;
+    transition: color var(--duration-quick) var(--ease), transform var(--duration-base) var(--lx-ease-out);
+  }
+  .lx-footer__col a:hover {
+    transform: translateX(3px);
+  }
+}
+
+/* ---------------------------------------------------------------- State */
+
+/* Theme glyph turns in when the theme flips. */
+.lx-theme-glyph {
+  display: inline-grid;
+  animation: lx-glyph-in 360ms var(--lx-ease-out);
+}
+@keyframes lx-glyph-in {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Mobile menu: sheet fades down from the bar, links follow in a short cascade. */
+.lx-nav__menu[open] > .lx-menu {
+  animation: lx-menu-in 320ms var(--lx-ease-drawer);
+}
+.lx-nav__menu[open].is-closing > .lx-menu {
+  animation: lx-menu-out 220ms var(--lx-ease-out) forwards;
+}
+@keyframes lx-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes lx-menu-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.lx-nav__menu[open] .lx-menu__link {
+  animation: lx-rise 460ms var(--lx-ease-out) backwards;
+}
+.lx-nav__menu[open] .lx-menu__link:nth-child(1) { animation-delay: 60ms; }
+.lx-nav__menu[open] .lx-menu__link:nth-child(2) { animation-delay: 100ms; }
+.lx-nav__menu[open] .lx-menu__link:nth-child(3) { animation-delay: 140ms; }
+.lx-nav__menu[open] .lx-menu__link:nth-child(4) { animation-delay: 180ms; }
+.lx-nav__menu[open] .lx-menu__link:nth-child(5) { animation-delay: 220ms; }
+.lx-nav__menu[open] .lx-menu__link:nth-child(6) { animation-delay: 260ms; }
+.lx-nav__menu[open] .lx-menu__footer {
+  animation: lx-fade 400ms var(--lx-ease-out) 300ms backwards;
+}
+
+/* Scan result arrives with a rise instead of appearing. */
+.lx-result {
+  animation: lx-rise 520ms var(--lx-ease-out) backwards;
+}
+.lx-result__findings > * {
+  animation: lx-rise 460ms var(--lx-ease-out) backwards;
+}
+.lx-result__findings > :nth-child(2) { animation-delay: 60ms; }
+.lx-result__findings > :nth-child(3) { animation-delay: 120ms; }
+.lx-result__findings > :nth-child(n + 4) { animation-delay: 180ms; }
+
+/* Journal list: re-keyed on filter change, entries settle quickly. */
+.lx-journal__list .lx-linkindex > li {
+  animation: lx-rise 380ms var(--lx-ease-out) backwards;
+}
+.lx-journal__list .lx-linkindex > li:nth-child(2) { animation-delay: 30ms; }
+.lx-journal__list .lx-linkindex > li:nth-child(3) { animation-delay: 60ms; }
+.lx-journal__list .lx-linkindex > li:nth-child(4) { animation-delay: 90ms; }
+.lx-journal__list .lx-linkindex > li:nth-child(n + 5) { animation-delay: 120ms; }
+
+/* Reading progress for articles, driven by scroll where supported. */
+@supports (animation-timeline: scroll()) {
+  .lx-readprogress {
+    animation: lx-progress linear both;
+    animation-timeline: scroll(root block);
+  }
+  @keyframes lx-progress {
+    to { transform: scaleX(1); }
+  }
+}
+@supports not (animation-timeline: scroll()) {
+  .lx-readprogress {
+    display: none;
+  }
+}
+
+/* Live status dot: a soft ring for operational only. Incidents stay still. */
+.lx-status__dot[data-live="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--state);
+  animation: lx-ping 2.4s var(--lx-ease-out) infinite;
+}
+@keyframes lx-ping {
+  0% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+/* 404: the digits settle one by one. */
+.lx-notfound__code span {
+  display: inline-block;
+  animation: lx-drop 900ms var(--lx-ease-out) backwards;
+}
+.lx-notfound__code span:nth-child(2) { animation-delay: 90ms; }
+.lx-notfound__code span:nth-child(3) { animation-delay: 180ms; }
+@keyframes lx-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px) rotate(-4deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Severity scale bars grow when their section reveals. */
+.lx-deductions__bar {
+  transition: transform 1000ms var(--lx-ease-out);
+}
+.is-pending:not(.is-revealed) .lx-deductions__bar {
+  transform: scaleX(0);
+}
+
+/* ---------------------------------------------------------------- Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .lx-enter > *,
+  .lx-hero__aside > *,
+  .lx-nav__menu[open] > .lx-menu,
+  .lx-nav__menu[open].is-closing > .lx-menu,
+  .lx-nav__menu[open] .lx-menu__link,
+  .lx-nav__menu[open] .lx-menu__footer,
+  .lx-result,
+  .lx-result__findings > *,
+  .lx-journal__list .lx-linkindex > li,
+  .lx-notfound__code span,
+  .lx-theme-glyph {
+    animation-name: lx-fade !important;
+    animation-duration: 200ms !important;
+  }
+  .lx-status__dot[data-live="true"]::after,
+  .lx-readprogress {
+    animation: none !important;
+    display: none;
+  }
+  .lx-button:active:not(:disabled),
+  .lx-chip:active,
+  .lx-iconbutton:active,
+  .lx-code__copy:active {
+    transform: none;
+  }
+}
+
+/* ================================================================ App (console)
+ * Used tens of times a day, so motion here is fast and small. */
+
+/* Press feedback for every console button. Colour still transitions as before. */
+.lx-press {
+  transition:
+    background-color 150ms var(--ease),
+    color 150ms var(--ease),
+    border-color 150ms var(--ease),
+    opacity 150ms var(--ease),
+    transform 120ms var(--lx-ease-out);
+}
+.lx-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* Modals stay centred: fade the backdrop, scale the panel up from 0.97. */
+.lx-modal-backdrop {
+  animation: lx-fade 180ms var(--ease);
+}
+.lx-modal {
+  animation: lx-modal-in 220ms var(--lx-ease-out);
+}
+@keyframes lx-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Toasts enter from the bottom edge and leave the same way. */
+.lx-toast {
+  animation: lx-toast-in 360ms var(--lx-ease-out);
+  transition: opacity 200ms var(--ease), transform 200ms var(--lx-ease-out);
+}
+.lx-toast[data-leaving] {
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+}
+@keyframes lx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lx-press:active:not(:disabled) {
+    transform: none;
+  }
+  .lx-modal,
+  .lx-toast {
+    animation-name: lx-fade !important;
+  }
+  .lx-toast[data-leaving] {
+    transform: none;
+  }
+}
+
+/* Console page titles share the editorial face; the first view of a page settles in. */
+:is(.console-page-heading, .observation-heading, .settings-page-heading) h1:is(h1) {
+  font-family: var(--font-serif);
+  font-weight: 400 !important;
+  letter-spacing: var(--tracking-heading) !important;
+  font-size: clamp(2rem, 1.7rem + 1vw, 2.5rem) !important;
+  line-height: 1.05;
+}
+:is(.console-page-heading, .observation-heading) > div {
+  animation: lx-rise 420ms var(--lx-ease-out) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.console-page-heading, .observation-heading) > div { animation-name: lx-fade; }
+}
+
+
+/* ---- Console: the few moments that earn motion (see D-033) ---------------- */
+
+/* The mobile navigation drawer slides from the edge it lives on. */
+.console-drawer[open] {
+  animation: console-drawer-in 320ms var(--lx-ease-drawer);
+}
+.console-drawer[open]::backdrop {
+  animation: lx-fade 200ms var(--ease);
+}
+@keyframes console-drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+
+/* A copy button's new label settles in, so the confirmation reads as a response. */
+.copy-swap {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  animation: copy-swap-in 160ms var(--lx-ease-out);
+}
+@keyframes copy-swap-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Each new audit stage rises into place instead of replacing the last one silently. */
+.audit-stage {
+  animation: audit-stage-in 260ms var(--lx-ease-out) backwards;
+}
+@keyframes audit-stage-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Payment confirmed: the disc pops once and the rings ripple outward. Rare, so it may bounce. */
+.purchase-result__signal .is-confirmed {
+  animation: purchase-pop 420ms var(--ease-spring) backwards;
+}
+.purchase-result__signal[data-state="confirmed"] > span {
+  animation: purchase-ripple 620ms var(--lx-ease-out) backwards;
+  animation-delay: calc(120ms + var(--ring) * 70ms);
+}
+@keyframes purchase-pop {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes purchase-ripple {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.07); border-color: hsl(var(--good) / 0.5); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-drawer[open],
+  .copy-swap,
+  .audit-stage,
+  .purchase-result__signal .is-confirmed {
+    animation-name: lx-fade;
+  }
+  .purchase-result__signal[data-state="confirmed"] > span {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------- Loading */
+
+/* One sweep for every "working on it" beam. A beam is a highlight narrower
+   than its track; --sweep-end is how far it travels to leave the track
+   (100% / beam width, e.g. 250% for a 40% beam). */
+@keyframes lx-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(var(--sweep-end, 300%)); }
+}
+
+/* One shimmer for every skeleton placeholder: a 200%-wide gradient slides
+   across the block. */
+@keyframes lx-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
