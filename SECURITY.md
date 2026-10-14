@@ -6,11 +6,14 @@ exposing an installation to other users.
 
 ## Reporting a vulnerability
 
-Do not publish exploit details or credentials in a public issue. Report a
-source vulnerability through GitHub's private vulnerability reporting feature
-for this repository. Repository maintainers must enable that feature before
-the first public release, or replace this instruction with another private
-contact method.
+Do not publish exploit details or credentials in a public issue. Private
+vulnerability reporting is enabled for this repository. Use GitHub's
+**Report a vulnerability** option on the repository's Security tab to contact
+the maintainers privately.
+
+If GitHub's private reporting form is unavailable, do not disclose details in a
+public issue. Contact the repository owner through GitHub and request a private
+reporting route.
 
 For an issue affecting a particular installation, contact that installation's
 operator.
