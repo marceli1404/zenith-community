@@ -431,7 +431,7 @@ test("production quick scans stay disabled until a widget site key is configured
   await page.goto("/");
 
   await expect(page.getByRole("button", { name: "Check site" })).toBeDisabled();
-  await expect(page.getByText(/temporarily unavailable until a dedicated verification widget is configured/i)).toBeVisible();
+  await expect(page.getByText("Quick Scan is disabled because this installation has no Turnstile site key.")).toBeVisible();
   expect(scanRequests).toBe(0);
 });
 

@@ -168,7 +168,7 @@ export function QuickScan() {
       return;
     }
     if (productionWithoutWidget) {
-      setError("Quick scans are temporarily unavailable because verification is not configured.");
+      setError("Quick Scan is disabled because this installation has no Turnstile site key.");
       return;
     }
     if (turnstileRequired && !token) {
@@ -242,7 +242,7 @@ export function QuickScan() {
           <p className="lx-scan__note" role="status">
             {configUnavailable
               ? "Quick scan settings could not be loaded. Refresh the page and try again."
-              : "Public Quick Scan is disabled on this installation."}
+              : "Quick Scan is disabled because this installation has no Turnstile site key."}
           </p>
         )}
         {!loaded && <p className="lx-scan__note" role="status">Scan settings are loading. The form becomes available when the service responds.</p>}
@@ -251,9 +251,6 @@ export function QuickScan() {
         )}
         {siteKey && !token && !widgetError && (
           <p className="lx-scan__note" role="status">Complete the verification check to enable scanning.</p>
-        )}
-        {!siteKey && config?.isProduction === true && (
-          <p className="lx-scan__note">Ask the installation operator to configure a dedicated Turnstile widget to enable public scans.</p>
         )}
       </form>
 

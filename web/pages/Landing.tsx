@@ -21,10 +21,8 @@ export default function Landing() {
         <Container>
           <header className="lx-sectionhead">
             <SectionLabel>Quick scan</SectionLabel>
-            <h2 className="lx-heading lx-heading--section" id="quick-scan-title">Check a site before you monitor it.</h2>
-            <p className="lx-body">Quick Scan checks the homepage and up to eight same-origin links. If the homepage is unreachable, returns an HTTP error other than 429, is empty or non-HTML, or matches a generic server-error signature, its score is 0/100. An HTTP 429 response only shows that the scanner was rate-limited, so no score is shown. A matching error heading with diagnostic output also counts, even if the server returns HTTP 200. Technical categories are unassessed after an outage.</p>
-            <p className="lx-body">It reads HTML without rendering the page. When a homepage has no readable text, Quick Scan can recognize some embedded media, such as images, video, audio, and frames, and mark it Not assessed.</p>
-            <p className="lx-body">If Quick Scan cannot check every discovered link because of the eight-link limit, robots.txt, a safety rule, or a rate limit, it reports how many links it checked and withholds the overall score.</p>
+            <h2 className="lx-heading lx-heading--section" id="quick-scan-title">Check whether a site is ready for monitoring.</h2>
+            <p className="lx-body">When enabled, Quick Scan checks the homepage and up to eight same-origin links. Public scans may be disabled on installations that have not configured a dedicated Turnstile widget. See the <TextLink to="/methodology">scoring method</TextLink> to learn what the scan can assess and when it withholds a score.</p>
           </header>
           <QuickScan />
         </Container>
