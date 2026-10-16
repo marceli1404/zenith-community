@@ -169,24 +169,36 @@ export async function runBrowserAnalysis(
       })
       .catch(() => ({ domContentLoadedMs: null, loadEventMs: null, resourceCount: null, transferredBytes: null }));
 
-    // Desktop screenshot.
+    // Screenshots are optional artifacts. Their capture or storage can fail
+    // independently without invalidating the browser checks above.
+    let desktopScreenshotKey: string | null = null;
     const desktopKey = `${input.r2KeyPrefix}/desktop.webp`;
-    const desktopShot = (await page.screenshot({ type: "webp", quality: 80 })) as unknown as Uint8Array;
-    await env.REPORTS_BUCKET.put(desktopKey, desktopShot, { httpMetadata: { contentType: "image/webp" } });
+    try {
+      const desktopShot = (await page.screenshot({ type: "webp", quality: 80 })) as unknown as Uint8Array;
+      await env.REPORTS_BUCKET.put(desktopKey, desktopShot, { httpMetadata: { contentType: "image/webp" } });
+      desktopScreenshotKey = desktopKey;
+    } catch (err) {
+      console.error("Desktop screenshot persistence failed", err instanceof Error ? err.message : err);
+    }
 
-    // Mobile screenshot.
-    await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true });
-    await page.reload({ waitUntil: "networkidle0", timeout: 30_000 }).catch(() => {});
+    let mobileScreenshotKey: string | null = null;
     const mobileKey = `${input.r2KeyPrefix}/mobile.webp`;
-    const mobileShot = (await page.screenshot({ type: "webp", quality: 80 })) as unknown as Uint8Array;
-    await env.REPORTS_BUCKET.put(mobileKey, mobileShot, { httpMetadata: { contentType: "image/webp" } });
+    try {
+      await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true });
+      await page.reload({ waitUntil: "networkidle0", timeout: 30_000 }).catch(() => {});
+      const mobileShot = (await page.screenshot({ type: "webp", quality: 80 })) as unknown as Uint8Array;
+      await env.REPORTS_BUCKET.put(mobileKey, mobileShot, { httpMetadata: { contentType: "image/webp" } });
+      mobileScreenshotKey = mobileKey;
+    } catch (err) {
+      console.error("Mobile screenshot persistence failed", err instanceof Error ? err.message : err);
+    }
 
     return {
       mainDocumentStatus,
       hasRenderedContent,
       hasGenericErrorPage,
-      desktopScreenshotKey: desktopKey,
-      mobileScreenshotKey: mobileKey,
+      desktopScreenshotKey,
+      mobileScreenshotKey,
       renderedTitle,
       consoleErrors: consoleErrors.slice(0, 20),
       perf,
