@@ -15,7 +15,7 @@
  * another flow is rejected.
  */
 
-import type { Bindings } from "../env";
+import { isProductionEnvironment, type Bindings } from "../env";
 
 export interface TurnstileResult {
   ok: boolean;
@@ -50,7 +50,7 @@ function allowedHostnames(env: Bindings): string[] {
   } catch {
     /* ignore malformed APP_URL */
   }
-  if (env.ENVIRONMENT !== "production") {
+  if (!isProductionEnvironment(env)) {
     hosts.add("localhost");
     hosts.add("127.0.0.1");
   }
@@ -64,7 +64,7 @@ export async function verifyTurnstile(
   expectedAction?: string,
 ): Promise<TurnstileResult> {
   const secret = env.TURNSTILE_SECRET_KEY;
-  const isProduction = env.ENVIRONMENT === "production";
+  const isProduction = isProductionEnvironment(env);
 
   if (!secret) {
     if (isProduction) {

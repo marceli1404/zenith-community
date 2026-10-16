@@ -6,7 +6,7 @@ import { withConfig, securityHeaders, withAuth, sameOriginGuard, type AppEnv } f
 import { getAuth } from "./auth";
 import { scheduleDueMonitors, processMonitorCheck } from "./monitor";
 import { processAuditJob } from "./audit/pipeline";
-import { deliverEmail } from "./lib/email";
+import { deliverEmail, EmailDeliveryBusyError } from "./lib/email";
 import { downsampleAndPrune } from "./maintenance";
 import scan from "./routes/scan";
 import sites from "./routes/sites";
@@ -104,7 +104,9 @@ export default {
       case "zenith-community-email":
         for (const message of batch.messages) {
           try { await deliverEmail(env, message.body as EmailJob); message.ack(); }
-          catch { message.retry(); }
+          catch (error) {
+            message.retry(error instanceof EmailDeliveryBusyError ? { delaySeconds: 65 } : undefined);
+          }
         }
         break;
       default:

@@ -92,6 +92,15 @@ describe("Turnstile hostname validation", () => {
     });
   });
 
+  it.each([undefined, "prod", "staging"])("fails closed without a Turnstile secret when ENVIRONMENT=%s", async (environment) => {
+    const env = { ...baseEnv, ENVIRONMENT: environment, TURNSTILE_SECRET_KEY: undefined } as unknown as Bindings;
+
+    await expect(verifyTurnstile(env, "token")).resolves.toEqual({
+      ok: false,
+      reason: "not_configured_in_production",
+    });
+  });
+
   it("keeps the timeout active while reading the Siteverify JSON body", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;

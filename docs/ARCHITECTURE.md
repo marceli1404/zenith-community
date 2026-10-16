@@ -23,7 +23,7 @@ flowchart LR
 - The Worker loads typed configuration, adds security headers, enforces same-origin checks for mutations, and resolves Better Auth sessions.
 - Monitoring cron work finds due enabled monitors, advances their next-check time, then enqueues bounded HTTP checks.
 - Audit requests enqueue a bounded crawler job. HTTP rules and best-effort browser checks produce findings and a deterministic score, which are stored in D1.
-- Queue delivery is at least once. The processed-job ledger prevents duplicate email side effects.
+- Queue delivery is at least once. Email jobs use expiring D1 leases to recover interrupted work; Resend receives an idempotency key, while Cloudflare Email may rarely send a duplicate if a worker stops after provider acceptance but before recording completion.
 - Public status pages expose uptime and incident information only. Audit findings and account details remain private.
 
 ## Data boundaries

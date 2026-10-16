@@ -68,7 +68,12 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
 export const withAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   try {
     const auth = getAuth(c.env, c.req.url);
-    const session = await auth.api.getSession({ headers: c.req.raw.headers });
+    // This is a stateful D1 deployment: bypass Better Auth's signed cookie cache
+    // so revoked or deleted sessions stop authorizing API calls immediately.
+    const session = await auth.api.getSession({
+      headers: c.req.raw.headers,
+      query: { disableCookieCache: true },
+    });
     if (session?.user) {
       c.set("userId", session.user.id);
       c.set("userEmail", session.user.email);
