@@ -10,6 +10,8 @@ describe("audit URL privacy", () => {
   it("retains ordinary page paths while hiding opaque identifiers", () => {
     expect(sanitizeAuditUrl("https://example.test/docs/getting-started/123e4567-e89b-12d3-a456-426614174000?view=full"))
       .toBe("https://example.test/docs/getting-started/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/monkey/author/accessibility"))
+      .toBe("https://example.test/monkey/author/accessibility");
   });
 
   it("hides shorter standalone mixed letter and digit tokens in paths", () => {
@@ -43,5 +45,7 @@ describe("audit URL privacy", () => {
   it("sanitizes relative credential URLs embedded in evidence prose", () => {
     expect(sanitizeAuditEvidence({ message: "Failed to load /reset/Ab12Cd34?token=private from the page." }, "https://example.test/"))
       .toEqual({ message: "Failed to load /[redacted]/[redacted] from the page." });
+    expect(sanitizeAuditEvidence({ message: "See [/reset/Ab12Cd34?token=private] for details." }, "https://example.test/"))
+      .toEqual({ message: "See [/[redacted]/[redacted]] for details." });
   });
 });

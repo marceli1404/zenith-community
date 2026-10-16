@@ -1,12 +1,16 @@
 /** Privacy helpers for URLs retained in audit results and generated reports. */
 
-const SENSITIVE_PATH_SEGMENT = /(?:token|secret|auth|password|passwd|reset|verify|verification|confirm|invite|magic|session|credential|signature|access|refresh|email|code|key)/i;
+const SENSITIVE_PATH_WORDS = new Set([
+  "token", "secret", "auth", "oauth", "password", "passwd", "reset", "verify", "verification",
+  "confirm", "invite", "invitation", "magic", "magiclink", "session", "credential", "signature",
+  "access", "refresh", "email", "code", "key", "login", "logout", "activation", "recovery", "callback",
+]);
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_SEGMENT = /^[^/\s@]+@[^/\s@]+\.[^/\s@]+$/;
 const OPAQUE_SEGMENT = /^[A-Za-z0-9_-]{20,}$/;
 const MIXED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]+$/;
 const ABSOLUTE_URL = /https?:\/\/[^\s"'<>),]+/gi;
-const RELATIVE_URL_IN_TEXT = /(^|[\s("'=])((?:\/|\.\.\/|\.\/)[^\s"'<>),;]*)/g;
+const RELATIVE_URL_IN_TEXT = /(^|[\s("'=[<{])((?:\/|\.\.\/|\.\/)[^\s"'<>),;]*)/g;
 const URL_FIELD = /(?:url|href|canonical|destination|redirect|path)$/i;
 
 /**
@@ -42,7 +46,8 @@ export function sanitizeAuditUrl(input: string, base?: string): string {
       parts[i] = "[redacted]";
       continue;
     }
-    const sensitive = SENSITIVE_PATH_SEGMENT.test(decoded);
+    const words = decoded.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[^a-z0-9]+/i).filter(Boolean);
+    const sensitive = words.some((word) => SENSITIVE_PATH_WORDS.has(word.toLowerCase()));
     const opaque = UUID_SEGMENT.test(decoded) || EMAIL_SEGMENT.test(decoded) || OPAQUE_SEGMENT.test(decoded)
       || MIXED_TOKEN_SEGMENT.test(decoded) || /^\d{8,}$/.test(decoded);
     if (redactNext || sensitive || opaque) parts[i] = "[redacted]";
@@ -59,9 +64,11 @@ export function sanitizeAuditEvidence<T>(value: T, baseUrl: string): T {
       const safeAbsoluteUrls = item.replace(ABSOLUTE_URL, (url) => sanitizeAuditUrl(url));
       if (/^(?:\/|\.\.?\/)[^\s]*$/.test(safeAbsoluteUrls)) return sanitizeAuditUrl(safeAbsoluteUrls, base);
       return safeAbsoluteUrls.replace(RELATIVE_URL_IN_TEXT, (_match, prefix: string, path: string) => {
-        const sanitized = sanitizeAuditUrl(path, base);
+        const closing = /[\]}]+$/.exec(path)?.[0] ?? "";
+        const candidate = closing ? path.slice(0, -closing.length) : path;
+        const sanitized = sanitizeAuditUrl(candidate, base);
         try {
-          return `${prefix}${new URL(sanitized).pathname}`;
+          return `${prefix}${new URL(sanitized).pathname}${closing}`;
         } catch {
           return `${prefix}[redacted URL]`;
         }
