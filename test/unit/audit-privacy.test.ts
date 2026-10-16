@@ -14,6 +14,40 @@ describe("audit URL privacy", () => {
       .toBe("https://example.test/monkey/author/accessibility");
   });
 
+  it("preserves ordinary hyphenated routes and lowercase year slugs", () => {
+    expect(sanitizeAuditUrl("https://example.test/key-value/code-examples/docs2026"))
+      .toBe("https://example.test/key-value/code-examples/docs2026");
+  });
+
+  it("redacts structured separated tokens and generic credential routes", () => {
+    expect(sanitizeAuditUrl("https://example.test/abcd-1234-efgh"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/AB-1234-CD"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/api-key/AbCd1234"))
+      .toBe("https://example.test/[redacted]/[redacted]");
+  });
+
+  it("redacts path segments containing encoded separators", () => {
+    expect(sanitizeAuditUrl("https://example.test/account%2FAb12Cd34%2Fsettings"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/safe%252FAb12Cd34"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/safe%252Ftoken%252FAb12Cd34"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/safe%2525252FAb12Cd34"))
+      .toBe("https://example.test/[redacted]");
+  });
+
+  it("preserves safe percent-encoded path text", () => {
+    expect(sanitizeAuditUrl("https://example.test/100%25"))
+      .toBe("https://example.test/100%25");
+    expect(sanitizeAuditUrl("https://example.test/price%2525-off"))
+      .toBe("https://example.test/price%2525-off");
+    expect(sanitizeAuditUrl("https://example.test/%E2%9C%93%20guide"))
+      .toBe("https://example.test/%E2%9C%93%20guide");
+  });
+
   it("hides shorter standalone mixed letter and digit tokens in paths", () => {
     expect(sanitizeAuditUrl("https://example.test/Ab12Cd34Ef56Gh78"))
       .toBe("https://example.test/[redacted]");

@@ -3,13 +3,16 @@
 const SENSITIVE_PATH_WORDS = new Set([
   "token", "secret", "auth", "oauth", "password", "passwd", "reset", "verify", "verification",
   "confirm", "invite", "invitation", "magic", "magiclink", "session", "credential", "signature",
-  "access", "refresh", "email", "code", "key", "login", "logout", "activation", "recovery", "callback",
+  "access", "refresh", "email", "login", "logout", "activation", "recovery", "callback",
 ]);
+const SENSITIVE_GENERIC_SEGMENTS = new Set(["code", "key", "api-key", "access-key", "access-token", "auth-code", "one-time-code", "verification-code"]);
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_SEGMENT = /^[^/\s@]+@[^/\s@]+\.[^/\s@]+$/;
 const OPAQUE_SEGMENT = /^[A-Za-z0-9_-]{20,}$/;
 const MIXED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]+$/;
 const SEPARATED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)(?=.*[-_])(?:(?=.*[A-Z])(?=.*[a-z])|(?=.*\d[-_A-Za-z]+\d))[A-Za-z0-9_-]+$/;
+const LETTER_NUMBER_LETTER_TOKEN = /^[A-Za-z]{2,}[-_]\d{3,}[-_][A-Za-z]{2,}$/;
+const COMMON_YEAR_SLUG = /^[a-z]+(?:19|20|21)\d{2}$/;
 const ABSOLUTE_URL = /https?:\/\/[^\s"'<>),]+/gi;
 const RELATIVE_URL_IN_TEXT = /(^|[\s("'=[<{])((?:\/|\.\.\/|\.\/)[^\s"'<>),;]*)/g;
 const URL_FIELD = /(?:url|href|canonical|destination|redirect|path)$/i;
@@ -41,16 +44,27 @@ export function sanitizeAuditUrl(input: string, base?: string): string {
     if (!part) continue;
     let decoded = part;
     try {
-      decoded = decodeURIComponent(part);
+      for (let pass = 0; pass < 5; pass += 1) {
+        const next = decodeURIComponent(decoded);
+        if (next === decoded) break;
+        decoded = next;
+        if (!/%[0-9a-f]{2}/i.test(decoded)) break;
+      }
     } catch {
       redactNext = true;
       parts[i] = "[redacted]";
       continue;
     }
+    const normalized = decoded.toLowerCase();
     const words = decoded.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[^a-z0-9]+/i).filter(Boolean);
-    const sensitive = words.some((word) => SENSITIVE_PATH_WORDS.has(word.toLowerCase()));
+    const sensitive = SENSITIVE_GENERIC_SEGMENTS.has(normalized)
+      || words.some((word) => SENSITIVE_PATH_WORDS.has(word.toLowerCase()));
+    const startsWithSensitiveRoute = [...SENSITIVE_PATH_WORDS].some((word) => normalized.startsWith(word));
+    const ordinaryYearSlug = COMMON_YEAR_SLUG.test(normalized) && !sensitive && !startsWithSensitiveRoute;
+    const stillEncoded = /%[0-9a-f]{2}/i.test(decoded);
     const opaque = UUID_SEGMENT.test(decoded) || EMAIL_SEGMENT.test(decoded) || OPAQUE_SEGMENT.test(decoded)
-      || MIXED_TOKEN_SEGMENT.test(decoded) || SEPARATED_TOKEN_SEGMENT.test(decoded) || /^\d{8,}$/.test(decoded);
+      || (!ordinaryYearSlug && MIXED_TOKEN_SEGMENT.test(decoded)) || SEPARATED_TOKEN_SEGMENT.test(decoded)
+      || LETTER_NUMBER_LETTER_TOKEN.test(decoded) || /[\\/]/.test(decoded) || stillEncoded || /^\d{8,}$/.test(decoded);
     if (redactNext || sensitive || opaque) parts[i] = "[redacted]";
     redactNext = sensitive;
   }
