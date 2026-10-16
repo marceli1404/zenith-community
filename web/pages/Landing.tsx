@@ -23,7 +23,8 @@ export default function Landing() {
             <SectionLabel>Quick scan</SectionLabel>
             <h2 className="lx-heading lx-heading--section" id="quick-scan-title">Check a site before you monitor it.</h2>
             <p className="lx-body">Quick Scan checks the homepage and up to eight same-origin links. If the homepage is unreachable, returns an HTTP error, is empty or non-HTML, or matches a generic server-error signature, its score is 0/100. A matching error heading with diagnostic output also counts, even if the server returns HTTP 200. Technical categories are unassessed.</p>
-            <p className="lx-body">It reads HTML without rendering the page. When a homepage has no readable text, Quick Scan can recognize some embedded media, such as images, video, audio, and frames, and mark it Not assessed. If robots.txt or a safety check prevents a page request, no score is calculated.</p>
+            <p className="lx-body">It reads HTML without rendering the page. When a homepage has no readable text, Quick Scan can recognize some embedded media, such as images, video, audio, and frames, and mark it Not assessed.</p>
+            <p className="lx-body">If Quick Scan cannot check every discovered link because of the eight-link limit, robots.txt, or a safety rule, it reports how many links it checked and withholds the overall score.</p>
           </header>
           <QuickScan />
         </Container>

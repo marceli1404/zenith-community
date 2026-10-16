@@ -58,6 +58,10 @@ export default function Methodology() {
             no readable text, Quick Scan can recognize some embedded media, such as images, video, audio, and frames, and mark it Not
             assessed. It does not render the page or detect every way media can appear.
           </p>
+          <p>
+            Quick Scan checks up to eight eligible same-origin links. If its limit, robots.txt, or a safety check leaves a discovered
+            link unchecked, the result reports how many links were checked and withholds the overall score.
+          </p>
         </>
       ),
     },

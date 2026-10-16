@@ -460,6 +460,8 @@ describe("quick scan homepage availability", () => {
     expect(result.checkedLinks).toBe(0);
     expect(result.brokenLinks).toBe(0);
     expect(result.score.reliabilityDeduction).toBe(0);
+    expect(result.score.overall).toBeNull();
+    expect(result.linkCoverage).toMatchObject({ discovered: 1, checked: 0, blockedBySafety: 1, complete: false });
     expect(result.topFindings).not.toContainEqual(expect.objectContaining({ ruleId: "reliability.broken-link" }));
   });
 
@@ -919,6 +921,133 @@ describe("quick scan homepage availability", () => {
       ruleId: "reliability.broken-link",
       severity: "high",
     }));
+  });
+
+  it("withholds the overall score when the link limit leaves discovered links unchecked", async () => {
+    const links = Array.from({ length: 9 }, (_, index) => `https://example.com/page/${index + 1}`);
+    vi.mocked(extractPageMeta).mockResolvedValue({
+      title: "Example",
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 1,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links,
+      hasViewportMeta: true,
+    });
+    safeFetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      return {
+        ok: true,
+        finalUrl: url,
+        status: 200,
+        headers: new Headers({ "content-type": url.endsWith("/") ? "text/html" : "text/plain" }),
+        responseMs: 20,
+        redirectCount: 0,
+        body: url === "https://example.com/" ? "<html><body>Example</body></html>" : undefined,
+      };
+    });
+
+    const result = await quickScan("https://example.com/", "Zenith");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.checkedLinks).toBe(8);
+    expect(result.brokenLinks).toBe(0);
+    expect(result.linkCoverage).toEqual({
+      discovered: 9,
+      checked: 8,
+      limit: 8,
+      omittedByLimit: 1,
+      blockedByUnsafePath: 0,
+      blockedByRobots: 0,
+      blockedBySafety: 0,
+      complete: false,
+    });
+    expect(result.score.overall).toBeNull();
+    expect(Object.values(result.score.categories).every((score) => score !== null)).toBe(true);
+  });
+
+  it("withholds the overall score when robots.txt disallows a discovered child link", async () => {
+    const allowedLink = "https://example.com/about";
+    const blockedLink = "https://example.com/private";
+    vi.mocked(loadRobots).mockResolvedValue({
+      rules: [{ allow: false, path: "/private" }],
+      block: null,
+      found: true,
+    });
+    vi.mocked(extractPageMeta).mockResolvedValue({
+      title: "Example",
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 1,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: [allowedLink, blockedLink],
+      hasViewportMeta: true,
+    });
+    safeFetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      return {
+        ok: true,
+        finalUrl: url,
+        status: 200,
+        headers: new Headers({ "content-type": url === "https://example.com/" ? "text/html" : "text/plain" }),
+        responseMs: 20,
+        redirectCount: 0,
+        body: url === "https://example.com/" ? "<html><body>Example</body></html>" : undefined,
+      };
+    });
+
+    const result = await quickScan("https://example.com/", "Zenith");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.checkedLinks).toBe(1);
+    expect(result.linkCoverage).toMatchObject({ discovered: 2, checked: 1, blockedByRobots: 1, complete: false });
+    expect(result.score.overall).toBeNull();
+    expect(safeFetchMock).not.toHaveBeenCalledWith(blockedLink, expect.anything());
+  });
+
+  it("withholds the overall score when a discovered action-like link is skipped for safety", async () => {
+    const allowedLink = "https://example.com/about";
+    const unsafeLink = "https://example.com/logout";
+    vi.mocked(extractPageMeta).mockResolvedValue({
+      title: "Example",
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 1,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: [allowedLink, unsafeLink],
+      hasViewportMeta: true,
+    });
+    safeFetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      return {
+        ok: true,
+        finalUrl: url,
+        status: 200,
+        headers: new Headers({ "content-type": url === "https://example.com/" ? "text/html" : "text/plain" }),
+        responseMs: 20,
+        redirectCount: 0,
+        body: url === "https://example.com/" ? "<html><body>Example</body></html>" : undefined,
+      };
+    });
+
+    const result = await quickScan("https://example.com/", "Zenith");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.linkCoverage).toMatchObject({ discovered: 2, checked: 1, blockedByUnsafePath: 1, complete: false });
+    expect(result.score.overall).toBeNull();
+    expect(safeFetchMock).not.toHaveBeenCalledWith(unsafeLink, expect.anything());
   });
 
   it.each([

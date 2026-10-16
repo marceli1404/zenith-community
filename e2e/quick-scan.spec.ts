@@ -136,6 +136,38 @@ test("a robots-blocked homepage is not assessed or assigned a score", async ({ p
   await expect(page.locator(".lx-result__score")).not.toContainText("/100");
 });
 
+test("an incomplete link scan withholds the overall score and explains the coverage limit", async ({ page }) => {
+  await mockPublicConfig(page, { environment: "preview", isProduction: false, turnstileSiteKey: "" });
+  await page.route("**/api/scan", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      url: "https://many-links.example/",
+      finalUrl: "https://many-links.example/",
+      score: { overall: null, categories: { security: 100, accessibility: 100, performance: 100, seo: 100 }, reliabilityDeduction: 0 },
+      topFindings: [],
+      additionalFindingCount: 0,
+      robotsTxtFound: true,
+      sitemapFound: true,
+      brokenLinks: 0,
+      checkedLinks: 8,
+      linkCoverage: { discovered: 9, checked: 8, limit: 8, omittedByLimit: 1, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: false },
+      httpsRedirects: true,
+    }),
+  }));
+
+  await page.goto("/");
+  await page.getByLabel("Website address").fill("https://many-links.example/");
+  await page.getByRole("button", { name: "Check site" }).click();
+
+  await expect(page.getByLabel("Overall score not fully assessed")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of 9 discovered same-origin links" })).toContainText("scan limit left 1 unchecked");
+  await expect(page.getByText("100/100", { exact: true })).toHaveCount(4);
+  await expect(page.locator(".lx-result__score")).not.toContainText("/100");
+  await expect(page.getByText("Redirect detected", { exact: true })).toBeVisible();
+});
+
 test("a truncated homepage is shown as not assessed without a numeric score", async ({ page }) => {
   await mockPublicConfig(page, { environment: "preview", isProduction: false, turnstileSiteKey: "" });
   await page.route("**/api/scan", (route) => route.fulfill({

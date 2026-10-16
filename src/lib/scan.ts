@@ -29,6 +29,16 @@ export interface QuickScanResult {
   sitemapFound: boolean | null;
   brokenLinks: number;
   checkedLinks: number;
+  linkCoverage: {
+    discovered: number;
+    checked: number;
+    limit: number;
+    omittedByLimit: number;
+    blockedByUnsafePath: number;
+    blockedByRobots: number;
+    blockedBySafety: number;
+    complete: boolean | null;
+  };
   httpsRedirects: boolean | null;
 }
 
@@ -253,19 +263,32 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
   }
 
   // Bounded broken-link check on same-origin links.
-  const sameOriginLinks = dedupe(meta.links.filter((link) => {
-    if (robotsTxt.block) return false;
-    if (!isSameOrigin(link, origin)) return false;
+  const discoveredSameOriginLinks = dedupe(meta.links.filter((link) => isSameOrigin(link, origin)));
+  const unsafeSameOriginLinks = discoveredSameOriginLinks.filter((link) => {
     try {
       const parsed = new URL(link);
       const path = `${parsed.pathname}${parsed.search}`;
-      return !isUnsafeCrawlPath(path) && !isDisallowed(robotsTxt.rules, path);
+      return isUnsafeCrawlPath(path);
     } catch {
-      return false;
+      return true;
     }
-  })).slice(0, MAX_LINKS_TO_CHECK);
+  });
+  const safeSameOriginLinks = discoveredSameOriginLinks.filter((link) => !unsafeSameOriginLinks.includes(link));
+  const robotsDisallowedLinks = safeSameOriginLinks.filter((link) => {
+    if (robotsTxt.block) return true;
+    try {
+      const parsed = new URL(link);
+      return isDisallowed(robotsTxt.rules, `${parsed.pathname}${parsed.search}`);
+    } catch {
+      return true;
+    }
+  });
+  const allowedSameOriginLinks = safeSameOriginLinks.filter((link) => !robotsDisallowedLinks.includes(link));
+  const omittedByLimit = Math.max(0, allowedSameOriginLinks.length - MAX_LINKS_TO_CHECK);
+  const sameOriginLinks = allowedSameOriginLinks.slice(0, MAX_LINKS_TO_CHECK);
   let brokenLinks = 0;
   let checkedLinks = 0;
+  let blockedBySafety = 0;
   const linkResults = await Promise.all(
     sameOriginLinks.map((l) => headWithGetFallback(l, { timeoutMs: 6000, redirectPolicy: checkCrawlTarget })),
   );
@@ -273,7 +296,10 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     const r = linkResults[i]!;
     // A crawl-policy or SSRF guard intentionally prevents the destination from
     // being assessed; that is neither a broken link nor a checked endpoint.
-    if (!r.ok && (r.errorCode === "redirect_policy" || r.errorCode === "blocked_target")) continue;
+    if (!r.ok && (r.errorCode === "redirect_policy" || r.errorCode === "blocked_target")) {
+      blockedBySafety += 1;
+      continue;
+    }
     checkedLinks += 1;
     if (!r.ok || r.status >= 300) {
       brokenLinks += 1;
@@ -294,6 +320,28 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     }
   }
 
+  const linkCoverageComplete = omittedByLimit === 0 && unsafeSameOriginLinks.length === 0
+    && robotsDisallowedLinks.length === 0 && blockedBySafety === 0;
+  if (!linkCoverageComplete) {
+    findings.push({
+      category: "reliability",
+      severity: "info",
+      ruleId: "reliability.link-coverage-incomplete",
+      title: "Quick Scan did not check every discovered link",
+      description: "Some discovered same-origin links were left unchecked, so Quick Scan withheld the overall score.",
+      pageUrl: origin,
+      evidence: {
+        discoveredLinks: discoveredSameOriginLinks.length,
+        checkedLinks,
+        omittedByLimit,
+        blockedByUnsafePath: unsafeSameOriginLinks.length,
+        blockedByRobots: robotsDisallowedLinks.length,
+        blockedBySafety,
+      },
+      recommendation: "Resolve the coverage limits or robots policy, then run a deeper audit for a complete result.",
+    });
+  }
+
   const grouped = groupFindings(findings);
   const score = computeScores(grouped, { siteAvailable: true });
 
@@ -312,13 +360,23 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     ok: true,
     url: sanitizeAuditUrl(target),
     finalUrl: sanitizeAuditUrl(primary.finalUrl),
-    score,
+    score: { ...score, overall: linkCoverageComplete ? score.overall : null },
     topFindings: top,
     additionalFindingCount: Math.max(0, ranked.length - top.length),
     robotsTxtFound,
     sitemapFound,
     brokenLinks,
     checkedLinks,
+    linkCoverage: {
+      discovered: discoveredSameOriginLinks.length,
+      checked: checkedLinks,
+      limit: MAX_LINKS_TO_CHECK,
+      omittedByLimit,
+      blockedByUnsafePath: unsafeSameOriginLinks.length,
+      blockedByRobots: robotsDisallowedLinks.length,
+      blockedBySafety,
+      complete: linkCoverageComplete,
+    },
     httpsRedirects: httpsRedirects.redirects,
   };
 }
@@ -366,6 +424,7 @@ function notAssessedQuickScan(
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
+    linkCoverage: { discovered: 0, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
     httpsRedirects: null,
   };
 }
@@ -408,6 +467,7 @@ function unavailableQuickScan(target: string, errorCode: string, evidence: Recor
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
+    linkCoverage: { discovered: 0, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
     httpsRedirects: null,
   };
 }

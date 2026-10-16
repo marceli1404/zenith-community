@@ -31,6 +31,16 @@ interface ScanResult {
   sitemapFound: boolean | null;
   brokenLinks: number;
   checkedLinks: number;
+  linkCoverage?: {
+    discovered: number;
+    checked: number;
+    limit: number;
+    omittedByLimit: number;
+    blockedByUnsafePath: number;
+    blockedByRobots: number;
+    blockedBySafety: number;
+    complete: boolean | null;
+  };
   httpsRedirects: boolean | null;
 }
 
@@ -269,8 +279,9 @@ function ScanReport({ result }: { result: ScanResult }) {
   const homepageUnavailable = result.topFindings.some((finding) => finding.ruleId === "reliability.homepage-unavailable");
   const robotsBlocked = result.topFindings.some((finding) => finding.ruleId === "reliability.robots-disallowed");
   const unsafeRequestedPath = result.topFindings.some((finding) => finding.ruleId === "reliability.unsafe-path");
-  const notAssessed = result.score.overall === null;
-  const label = homepageUnavailable ? "Unavailable" : result.score.overall === null ? "Not assessed" : getScoreLabel(result.score.overall);
+  const incompleteLinks = result.linkCoverage?.complete === false;
+  const notAssessed = result.score.overall === null && Object.values(result.score.categories).every((score) => score === null);
+  const label = homepageUnavailable ? "Unavailable" : incompleteLinks ? "Not fully assessed" : notAssessed ? "Not assessed" : getScoreLabel(result.score.overall!);
   const displayUrl = result.finalUrl || result.url;
   const firstFailure = notAssessed ? result.topFindings.find((finding) => finding.category === "reliability") : null;
 
@@ -282,7 +293,7 @@ function ScanReport({ result }: { result: ScanResult }) {
           <h3 className="lx-result__url" id="quick-scan-result-title">{displayUrl}</h3>
           <p className="lx-result__url-note">Displayed address omits query strings and likely token-like path segments.</p>
         </div>
-        <p className="lx-result__score" aria-label={notAssessed ? "Overall score not assessed" : `Overall score ${result.score.overall} out of 100, ${label}`}>
+        <p className="lx-result__score" aria-label={incompleteLinks ? "Overall score not fully assessed" : notAssessed ? "Overall score not assessed" : `Overall score ${result.score.overall} out of 100, ${label}`}>
           {result.score.overall === null
             ? <span>{label}</span>
             : <><strong className="lx-sheet__number">{result.score.overall}</strong><span>/100 · {label}</span></>}
@@ -290,7 +301,14 @@ function ScanReport({ result }: { result: ScanResult }) {
       </div>
 
       {homepageUnavailable && <p className="lx-result__empty" role="status">{result.topFindings.find((finding) => finding.ruleId === "reliability.homepage-unavailable")?.description} Technical categories are unassessed.</p>}
-      {!homepageUnavailable && firstFailure && <p className="lx-result__empty" role="status">{firstFailure.description} No score was calculated; technical categories are unassessed.</p>}
+      {!homepageUnavailable && incompleteLinks && <p className="lx-result__empty" role="status">
+        Quick Scan checked {result.linkCoverage!.checked} of {result.linkCoverage!.discovered} discovered same-origin links. No overall score was calculated because link coverage is incomplete.
+        {result.linkCoverage!.omittedByLimit > 0 && ` The ${result.linkCoverage!.limit}-link scan limit left ${result.linkCoverage!.omittedByLimit} unchecked.`}
+        {result.linkCoverage!.blockedByUnsafePath > 0 && ` Safety rules skipped ${result.linkCoverage!.blockedByUnsafePath} unsafe link${result.linkCoverage!.blockedByUnsafePath === 1 ? "" : "s"}.`}
+        {result.linkCoverage!.blockedByRobots > 0 && ` robots.txt blocked ${result.linkCoverage!.blockedByRobots} link${result.linkCoverage!.blockedByRobots === 1 ? "" : "s"}.`}
+        {result.linkCoverage!.blockedBySafety > 0 && ` Safety checks prevented checking ${result.linkCoverage!.blockedBySafety} link${result.linkCoverage!.blockedBySafety === 1 ? "" : "s"}.`}
+      </p>}
+      {!homepageUnavailable && !incompleteLinks && firstFailure && <p className="lx-result__empty" role="status">{firstFailure.description} No score was calculated; technical categories are unassessed.</p>}
 
       <dl className="lx-result__categories" aria-label="Category scores">
         {categories.map(([key, label]) => {
@@ -300,8 +318,8 @@ function ScanReport({ result }: { result: ScanResult }) {
       </dl>
 
       <div className="lx-scan-facts" aria-label="Scan coverage">
-        <span>Broken links: <strong>{homepageUnavailable ? "Not checked; homepage could not be assessed" : notAssessed ? "Not checked; site not assessed" : `${result.brokenLinks} of ${result.checkedLinks} checked`}</strong></span>
-        <span>Reliability impact: <strong>{homepageUnavailable ? "Homepage could not be assessed; score set to 0" : notAssessed ? "Not assessed" : `${result.score.reliabilityDeduction} points deducted`}</strong></span>
+        <span>Broken links: <strong>{homepageUnavailable ? "Not checked; homepage could not be assessed" : incompleteLinks ? `${result.brokenLinks} found among ${result.linkCoverage!.checked} checked` : notAssessed ? "Not checked; site not assessed" : `${result.brokenLinks} of ${result.checkedLinks} checked`}</strong></span>
+        <span>Reliability impact: <strong>{homepageUnavailable ? "Homepage could not be assessed; score set to 0" : incompleteLinks ? `${result.score.reliabilityDeduction} points from checked links; overall score withheld` : notAssessed ? "Not assessed" : `${result.score.reliabilityDeduction} points deducted`}</strong></span>
         <span>robots.txt: <strong>{unsafeRequestedPath ? "Not checked" : robotsBlocked ? result.robotsTxtFound ? "Checked; scan blocked by robots policy" : "Unavailable; scan not assessed" : result.robotsTxtFound ? "Available" : "Not available"}</strong></span>
         <span>sitemap.xml: <strong>{homepageUnavailable || notAssessed || result.sitemapFound === null ? "Not checked" : result.sitemapFound ? "Available" : "Not available"}</strong></span>
         <span>HTTP to HTTPS: <strong>{homepageUnavailable || notAssessed ? "Not checked" : result.httpsRedirects === null ? "Not verified" : result.httpsRedirects ? "Redirect detected" : "No redirect detected"}</strong></span>
