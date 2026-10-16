@@ -958,6 +958,7 @@ describe("quick scan homepage availability", () => {
     expect(result.brokenLinks).toBe(0);
     expect(result.linkCoverage).toEqual({
       discovered: 9,
+      discoveryTruncated: false,
       checked: 8,
       limit: 8,
       omittedByLimit: 1,
@@ -968,6 +969,42 @@ describe("quick scan homepage availability", () => {
     });
     expect(result.score.overall).toBeNull();
     expect(Object.values(result.score.categories).every((score) => score !== null)).toBe(true);
+  });
+
+  it("marks discovered-link totals as a lower bound when HTML link extraction is capped", async () => {
+    const links = Array.from({ length: 250 }, (_, index) => `https://example.com/page/${index + 1}`);
+    vi.mocked(extractPageMeta).mockResolvedValue({
+      title: "Example",
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 1,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links,
+      sameOriginLinksTruncated: true,
+      hasViewportMeta: true,
+    });
+    safeFetchMock.mockImplementation(async (input) => {
+      const url = String(input);
+      return {
+        ok: true,
+        finalUrl: url,
+        status: 200,
+        headers: new Headers({ "content-type": url.endsWith("/") ? "text/html" : "text/plain" }),
+        responseMs: 20,
+        redirectCount: 0,
+        body: url === "https://example.com/" ? "<html><body>Example</body></html>" : undefined,
+      };
+    });
+
+    const result = await quickScan("https://example.com/", "Zenith");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.linkCoverage).toMatchObject({ discovered: 250, discoveryTruncated: true, checked: 8, complete: false });
+    expect(result.score.overall).toBeNull();
   });
 
   it("withholds the overall score when robots.txt disallows a discovered child link", async () => {

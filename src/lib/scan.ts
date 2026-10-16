@@ -31,6 +31,7 @@ export interface QuickScanResult {
   checkedLinks: number;
   linkCoverage: {
     discovered: number;
+    discoveryTruncated: boolean;
     checked: number;
     limit: number;
     omittedByLimit: number;
@@ -369,6 +370,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     checkedLinks,
     linkCoverage: {
       discovered: discoveredSameOriginLinks.length,
+      discoveryTruncated: meta.sameOriginLinksTruncated === true,
       checked: checkedLinks,
       limit: MAX_LINKS_TO_CHECK,
       omittedByLimit,
@@ -424,7 +426,7 @@ function notAssessedQuickScan(
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
-    linkCoverage: { discovered: 0, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
+    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
     httpsRedirects: null,
   };
 }
@@ -467,7 +469,7 @@ function unavailableQuickScan(target: string, errorCode: string, evidence: Recor
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
-    linkCoverage: { discovered: 0, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
+    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
     httpsRedirects: null,
   };
 }

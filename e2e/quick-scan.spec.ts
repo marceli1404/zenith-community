@@ -152,7 +152,7 @@ test("an incomplete link scan withholds the overall score and explains the cover
       sitemapFound: true,
       brokenLinks: 0,
       checkedLinks: 8,
-      linkCoverage: { discovered: 9, checked: 8, limit: 8, omittedByLimit: 1, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: false },
+      linkCoverage: { discovered: 9, discoveryTruncated: true, checked: 8, limit: 8, omittedByLimit: 1, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: false },
       httpsRedirects: true,
     }),
   }));
@@ -162,8 +162,8 @@ test("an incomplete link scan withholds the overall score and explains the cover
   await page.getByRole("button", { name: "Check site" }).click();
 
   await expect(page.getByLabel("Overall score not fully assessed")).toBeVisible();
-  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of 9 discovered same-origin links" })).toContainText("scan limit left 1 unchecked");
-  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of 9 discovered same-origin links" })).toContainText("category scores below cover the homepage only");
+  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of at least 9 discovered same-origin links" })).toContainText("scan limit left at least 1 unchecked");
+  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of at least 9 discovered same-origin links" })).toContainText("category scores below cover the homepage only");
   await expect(page.getByText("100/100", { exact: true })).toHaveCount(4);
   await expect(page.locator(".lx-result__score")).not.toContainText("/100");
   await expect(page.getByText("Redirect detected", { exact: true })).toBeVisible();
