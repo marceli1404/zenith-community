@@ -302,7 +302,7 @@ function ScanReport({ result }: { result: ScanResult }) {
 
       {homepageUnavailable && <p className="lx-result__empty" role="status">{result.topFindings.find((finding) => finding.ruleId === "reliability.homepage-unavailable")?.description} Technical categories are unassessed.</p>}
       {!homepageUnavailable && incompleteLinks && <p className="lx-result__empty" role="status">
-        Quick Scan checked {result.linkCoverage!.checked} of {result.linkCoverage!.discovered} discovered same-origin links. No overall score was calculated because link coverage is incomplete.
+        Quick Scan checked {result.linkCoverage!.checked} of {result.linkCoverage!.discovered} discovered same-origin links. No overall score was calculated because link coverage is incomplete. The category scores below cover the homepage only; unchecked links are not included.
         {result.linkCoverage!.omittedByLimit > 0 && ` The ${result.linkCoverage!.limit}-link scan limit left ${result.linkCoverage!.omittedByLimit} unchecked.`}
         {result.linkCoverage!.blockedByUnsafePath > 0 && ` Safety rules skipped ${result.linkCoverage!.blockedByUnsafePath} unsafe link${result.linkCoverage!.blockedByUnsafePath === 1 ? "" : "s"}.`}
         {result.linkCoverage!.blockedByRobots > 0 && ` robots.txt blocked ${result.linkCoverage!.blockedByRobots} link${result.linkCoverage!.blockedByRobots === 1 ? "" : "s"}.`}

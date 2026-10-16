@@ -163,6 +163,7 @@ test("an incomplete link scan withholds the overall score and explains the cover
 
   await expect(page.getByLabel("Overall score not fully assessed")).toBeVisible();
   await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of 9 discovered same-origin links" })).toContainText("scan limit left 1 unchecked");
+  await expect(page.getByRole("status").filter({ hasText: "Quick Scan checked 8 of 9 discovered same-origin links" })).toContainText("category scores below cover the homepage only");
   await expect(page.getByText("100/100", { exact: true })).toHaveCount(4);
   await expect(page.locator(".lx-result__score")).not.toContainText("/100");
   await expect(page.getByText("Redirect detected", { exact: true })).toBeVisible();
