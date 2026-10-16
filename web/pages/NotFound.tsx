@@ -17,7 +17,7 @@ export default function NotFound() {
           </p>
           <div className="lx-enter">
             <h1 id="nf-title" className="lx-heading lx-heading--section">This page isn&rsquo;t here.</h1>
-            <p>It may have moved, or the link may be mistyped. Here are the likeliest places to go next.</p>
+            <p>The address may be mistyped or the page may have moved. Try one of these pages instead.</p>
             <div className="lx-notfound__actions">
               <ButtonLink to="/">Return home</ButtonLink>
               <TextLink to="/methodology">See how scoring works</TextLink>

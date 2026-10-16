@@ -1,8 +1,8 @@
 /**
- * Login precision-polish capture: the exact matrix PRECISION_POLISH.md requires.
+ * Login-page layout capture for before/after visual review.
  *
- *   npm run polish:before      # against the unchanged local build
- *   npm run polish:after       # against the polished local build
+ *   npm run login-review:before
+ *   npm run login-review:after
  *
  * For every viewport x theme it writes a PNG plus a JSON record containing the
  * aside panel rect, the artwork SVG rect, the star path rect, the measured
@@ -11,14 +11,11 @@
  * inventory of form controls (tag, text, type, order, bounding rect) so the
  * immutable login contract can be diffed mechanically.
  *
- * Runs against a LOCAL build only (POLISH_BASE_URL). Production is never
+ * Runs against a LOCAL build only (LOGIN_REVIEW_BASE_URL). Production is never
  * touched and no form is ever submitted.
  *
- * Local fixture: this environment has no OAuth secrets, so /api/config reports
- * both providers disabled and the provider buttons would not render at all.
- * The response is stubbed to {google:true, github:true} — matching the real
- * production capability set — purely so the rendered result is comparable with
- * the production baseline. The stub is recorded in every JSON file.
+ * The isolated fixture disables optional identity providers and email delivery.
+ * It contains no production credentials or production account configuration.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -28,8 +25,8 @@ import { chromium } from "@playwright/test";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LABEL = process.argv[2] ?? "after";
-const BASE = process.env.POLISH_BASE_URL ?? "http://localhost:4173";
-const OUT = join(ROOT, "artifacts", "precision-polish", LABEL, "login");
+const BASE = process.env.LOGIN_REVIEW_BASE_URL ?? "http://localhost:4173";
+const OUT = join(ROOT, "artifacts", "login-review", LABEL, "login");
 
 const VIEWPORTS = [
   { w: 1920, h: 1080 }, { w: 1440, h: 900 }, { w: 1280, h: 800 }, { w: 1024, h: 768 },
@@ -39,10 +36,10 @@ const THEMES = ["light", "dark"];
 
 const CONFIG_FIXTURE = {
   appName: "Zenith",
-  turnstileSiteKey: "0x4AAAAAAEuCHVcKT3sNuMg7",
-  environment: "production",
-  authProviders: { google: true, github: true },
-  emailEnabled: true,
+  turnstileSiteKey: "",
+  environment: "development",
+  authProviders: { google: false, github: false },
+  emailEnabled: false,
 };
 
 /** Read every geometry fact we care about, in the page, in one pass. */
@@ -133,7 +130,7 @@ async function capture(browser, vp, theme, reducedMotion) {
 
   const record = {
     label: LABEL, url: BASE + "/login", viewport: vp, theme, reducedMotion,
-    fixture: "local /api/config stubbed to google+github enabled (no OAuth secrets locally)",
+    fixture: "isolated local /api/config with OAuth and email disabled",
     t0, t5, t15, afterResize,
   };
   await writeFile(file.replace(/\.png$/, ".json"), JSON.stringify(record, null, 2));

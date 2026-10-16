@@ -50,7 +50,6 @@
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="alert"]>.motion-icon__glyph{animation:icon-alert 420ms var(--lx-ease-out)}
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="document"]>.motion-icon__glyph{transform:translateY(-2px) rotate(-2deg)}
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="settings"]>.motion-icon__glyph{transform:rotate(38deg)}
-  :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="payment"]>.motion-icon__glyph{transform:translateX(2px) rotate(1deg)}
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="search"]>.motion-icon__glyph{transform:translate(1px,-1px) scale(1.06)}
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="arrow"]>.motion-icon__glyph{transform:translate(2px,-2px)}
   :is(a,button,label):is(:hover,:focus-visible) .motion-icon[data-motion="logout"]>.motion-icon__glyph{transform:translateX(2px)}

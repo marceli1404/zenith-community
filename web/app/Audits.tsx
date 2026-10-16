@@ -15,6 +15,7 @@ interface AuditRow {
   queued_at: number;
   completed_at: number | null;
   overall_score: number | null;
+  homepage_unavailable?: number;
   site_name: string | null;
   origin: string | null;
 }
@@ -61,7 +62,7 @@ export default function Audits() {
 
   return (
     <div className="cn-page">
-      <PageHeader title="Audits" description="Inspect a website, then see exactly what needs fixing." />
+      <PageHeader title="Audits" description="Inspect a public website and review its automated findings." />
 
       <Panel id="run-audit" tone="accent" title="Run an audit" description="Check a public website and review its findings and recommendations.">
         <form onSubmit={run} className="cn-inline-form">
@@ -85,7 +86,7 @@ export default function Audits() {
               return (
                 <Link key={a.id} to={`/app/audits/${a.id}`} className="cn-table__row">
                   <span className="cn-primary-cell"><span className="cn-monogram" aria-hidden="true"><ScanLine size={18} /></span><span><strong>{a.site_name || a.origin || "Ad-hoc audit"}</strong><small>{a.completed_at ? "Completed" : "Queued"} {relativeTime(a.completed_at ?? a.queued_at)}</small></span></span>
-                  <span>{a.overall_score != null ? <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span> : <span className="cn-score cn-score--none">No score</span>}</span>
+                  <span>{a.homepage_unavailable === 1 ? <span className="cn-score cn-score--none" aria-label="Homepage could not be assessed, score 0">0 · Homepage could not be assessed</span> : a.overall_score != null ? <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span> : <span className="cn-score cn-score--none">{a.completed_at ? "Not assessed" : "No score"}</span>}</span>
                   <span><Chip tone={status.tone} dot>{status.label}</Chip></span>
                   <span className="cn-muted audit-source">{a.source === "scheduled" ? "Scheduled" : "Manual"}</span>
                   <ChevronRight size={18} className="cn-row-arrow" />

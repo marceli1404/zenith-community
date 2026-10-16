@@ -1,5 +1,5 @@
 /**
- * Honest field-style performance capture for the precision-polish pass.
+ * Local performance capture for before/after review.
  *
  *   node scripts/perf-measure.mjs before
  *   node scripts/perf-measure.mjs after
@@ -9,8 +9,8 @@
  * JavaScript transfer/decoded bytes.
  *
  * This is NOT Lighthouse and does not produce Lighthouse category scores. It
- * reports only metrics it actually observes. INP is not measured here (it needs
- * real interactions); `npm run perf:inp` covers that separately.
+ * reports only metrics it actually observes. INP is not measured by this script
+ * because it requires real user interactions.
  *
  * Target defaults to a locally built preview (PERF_BASE_URL), never production.
  */
@@ -23,7 +23,7 @@ import { chromium } from "@playwright/test";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LABEL = process.argv[2] ?? "before";
 const BASE = process.env.PERF_BASE_URL ?? "http://localhost:4173";
-const OUT = join(ROOT, "artifacts", "precision-polish", LABEL);
+const OUT = join(ROOT, "artifacts", "performance-review", LABEL);
 
 const ROUTES = ["/", "/security", "/methodology", "/contact", "/legal/privacy", "/legal/terms", "/login", "/signup"];
 

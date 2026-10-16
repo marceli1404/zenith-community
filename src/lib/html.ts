@@ -5,6 +5,14 @@
  * what the (bounded, expensive) browser step is for.
  */
 
+import {
+  hasGenericErrorDebugContext,
+  isGenericErrorPageText,
+  MAX_GENERIC_ERROR_PAGE_TEXT_LENGTH,
+  MAX_GENERIC_ERROR_PAGE_WORD_COUNT,
+} from "@shared/availability";
+import { isSameOrigin } from "@shared/url";
+
 export interface PageMeta {
   title: string | null;
   metaDescription: string | null;
@@ -16,10 +24,12 @@ export interface PageMeta {
   imageCount: number;
   /** Absolute-resolved hrefs discovered on the page (bounded). */
   links: string[];
+  /** True when more than 250 unique same-origin links were found. */
+  sameOriginLinksTruncated?: boolean;
   hasViewportMeta: boolean;
 }
 
-const MAX_LINKS = 250;
+const MAX_LINKS_PER_SCOPE = 250;
 
 /**
  * Whether a response is an HTML document worth analysing as a page. Crawls find
@@ -35,10 +45,115 @@ export function isHtmlDocument(contentType: string | null | undefined, body?: st
 }
 
 /**
+ * Whether the HTTP-only scanner can find text content in an HTML response.
+ * This static check cannot verify CSS or media loading, so it requires text
+ * outside metadata, scripts, styles, templates, comments, and hidden subtrees.
+ */
+export function hasMeaningfulHtmlContent(html: string | null | undefined): boolean {
+  if (!html) return false;
+  return visibleHtmlText(html).length > 0;
+}
+
+/** True when an HTML response matches a strong generic error-screen signature. */
+export function isGenericErrorHtmlDocument(html: string | null | undefined): boolean {
+  if (!html) return false;
+  const uncommentedHtml = html
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<(script|style|template|noscript)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, " ");
+  const title = uncommentedHtml.match(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/i)?.[1] ?? "";
+  const titleText = title.replace(/<(?:[^>]+)>/g, " ").replace(/\s+/g, " ").trim();
+  const headings = Array.from(uncommentedHtml.matchAll(/<h1\b[^>]*>([\s\S]*?)(?:<\/h1\s*>|$)/gi), (match) =>
+    visibleHtmlText(`<div>${match[1] ?? ""}</div>`).replace(/&(?:apos|#0*39|#x0*27);/gi, "'"));
+  const bodyText = visibleHtmlText(html).replace(/&(?:apos|#0*39|#x0*27);/gi, "'");
+  const bodyWords = bodyText.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const shortPage = bodyText.length <= MAX_GENERIC_ERROR_PAGE_TEXT_LENGTH && bodyWords.length <= MAX_GENERIC_ERROR_PAGE_WORD_COUNT;
+  return isGenericErrorPageText(titleText)
+    || isGenericErrorPageText(bodyText)
+    || headings.some(isGenericErrorPageText) && (shortPage || hasGenericErrorDebugContext(bodyText));
+}
+
+function visibleHtmlText(html: string): string {
+  return availabilityMarkup(html)
+    .replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, " ")
+    .replace(/&(?:nbsp|tab|newline|shy|NoBreak|ZeroWidthSpace|zwnj|zwj|lrm|rlm);/gi, " ")
+    .replace(/&(?:#x0*(?:a0|ad|200b|200c|200d|200e|200f|2060|feff)|#0*(?:160|173|8203|8204|8205|8206|8207|8288|65279));/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Media URLs are possible content, but HTTP-only Quick Scan cannot confirm they loaded. */
+export function hasUnverifiedMediaContent(html: string | null | undefined): boolean {
+  if (!html) return false;
+  const content = availabilityMarkup(html);
+  const source = String.raw`(?=[^>]*\b(?:src|srcset)\s*=\s*(?:"[^"]+"|'[^']+'|[^\s>"']+))`;
+  const iframes = content.matchAll(/<iframe\b((?:[^>"']|"[^"]*"|'[^']*')*)>/gi);
+  const mediaWithChildSources = Array.from(content.matchAll(/<(video|audio)\b((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)(?:<\/\1\s*>|$)/gi));
+  return new RegExp(`<img\\b${source}[^>]*>`, "i").test(content)
+    || new RegExp(`<(?:video|audio|iframe|embed)\\b${source}[^>]*>`, "i").test(content)
+    || /<video\b(?=[^>]*\bposter\s*=\s*(?:"[^"]+"|'[^']+'|[^\s>"']+))[^>]*>/i.test(content)
+    || mediaWithChildSources.some((match) => new RegExp(`<source\\b${source}[^>]*>`, "i").test(match[3] ?? ""))
+    || /<object\b(?=[^>]*\bdata\s*=\s*(?:"[^"]+"|'[^']+'|[^\s>"']+))[^>]*>/i.test(content)
+    || Array.from(iframes).some(([tag]) => /\bsrcdoc\s*=\s*(?:"[^"]+"|'[^']+'|[^\s>]+)/i.test(tag));
+}
+
+function availabilityMarkup(html: string): string {
+  const withoutComments = html.replace(/<!--[\s\S]*?-->/g, " ");
+  const bodyMatch = withoutComments.match(/<body\b[^>]*>([\s\S]*?)(?:<\/body\s*>|$)/i);
+  const body = bodyMatch?.[1] ?? withoutComments.replace(/<head\b[^>]*>[\s\S]*?<\/head\s*>/i, "");
+  // HTML raw-text elements consume the rest of the document if their closing
+  // tag is missing. Treating their contents as prose would make a broken shell
+  // such as an unclosed script appear to be a page.
+  const withoutNonContent = body.replace(/<(script|style|template|noscript|title)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, " ");
+  // Preserve an iframe's opening tag so the media check can identify an
+  // unverified frame, while excluding any fallback or embedded page text.
+  const framePlaceholders = withoutNonContent.replace(/<iframe\b((?:[^>"']|"[^"]*"|'[^']*')*)>[\s\S]*?(?:<\/iframe\s*>|$)/gi, "<iframe$1></iframe>");
+  return stripExplicitlyHiddenContent(framePlaceholders);
+}
+
+function stripExplicitlyHiddenContent(html: string): string {
+  const voidTags = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"]);
+  const tokens = /<([a-z][\w:-]*(?:[^>"']|"[^"]*"|'[^']*')*)>|<\/([a-z][\w:-]*)\s*>/gi;
+  const hiddenStack: string[] = [];
+  let result = "";
+  let lastIndex = 0;
+  for (const match of html.matchAll(tokens)) {
+    const token = match[0];
+    const tagName = (match[1]?.match(/^[a-z][\w:-]*/i)?.[0] ?? match[2] ?? "").toLowerCase();
+    const closing = Boolean(match[2]);
+    const openingIsHidden = !closing && isExplicitlyHiddenTag(token);
+    if (hiddenStack.length === 0 && !openingIsHidden) result += html.slice(lastIndex, match.index) + token;
+    if (hiddenStack.length > 0) {
+      if (closing) {
+        const stackIndex = hiddenStack.lastIndexOf(tagName);
+        if (stackIndex >= 0) hiddenStack.length = stackIndex;
+      } else if (!voidTags.has(tagName) && !token.endsWith("/>")) {
+        hiddenStack.push(tagName);
+      }
+    } else if (openingIsHidden && !voidTags.has(tagName)) {
+      hiddenStack.push(tagName);
+    }
+    lastIndex = match.index + token.length;
+  }
+  if (hiddenStack.length === 0) result += html.slice(lastIndex);
+  return result;
+}
+
+function isExplicitlyHiddenTag(tag: string): boolean {
+  if (/\shidden(?:\s|=|\/?>)/i.test(tag)) return true;
+  const classMatch = tag.match(/\bclass\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+  const classes = (classMatch?.[1] ?? classMatch?.[2] ?? classMatch?.[3] ?? "").toLowerCase().split(/\s+/);
+  if (classes.some((name) => ["hidden", "invisible", "is-hidden", "visually-hidden", "visuallyhidden", "sr-only", "d-none", "display-none"].includes(name))) return true;
+  const styleMatch = tag.match(/\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i);
+  const style = styleMatch?.[1] ?? styleMatch?.[2] ?? styleMatch?.[3] ?? "";
+  return /(?:display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0(?:\.0+)?\s*(?:!important)?(?=;|$))/i.test(style);
+}
+
+/**
  * Parse metadata from an HTML string. `baseUrl` is used to resolve relative
  * links and canonical URLs.
  */
-export async function extractPageMeta(html: string, baseUrl: string): Promise<PageMeta> {
+export async function extractPageMeta(html: string, baseUrl: string, priorityOrigin = baseUrl): Promise<PageMeta> {
+  const effectiveBaseUrl = await extractDocumentBaseUrl(html, baseUrl);
   const meta: PageMeta = {
     title: null,
     metaDescription: null,
@@ -59,6 +174,11 @@ export async function extractPageMeta(html: string, baseUrl: string): Promise<Pa
   let titleDone = false;
   let svgDepth = 0;
   let titleText = "";
+  let canonicalHref: string | null = null;
+  const sameOriginLinks: string[] = [];
+  const seenSameOriginLinks = new Set<string>();
+  const otherOriginLinks: string[] = [];
+  let sameOriginLinksTruncated = false;
 
   const rewriter = new HTMLRewriter()
     .on("html", {
@@ -105,9 +225,7 @@ export async function extractPageMeta(html: string, baseUrl: string): Promise<Pa
       element(el) {
         const rel = el.getAttribute("rel")?.toLowerCase();
         const href = el.getAttribute("href");
-        if (rel === "canonical" && href) {
-          meta.canonical = resolve(href, baseUrl);
-        }
+        if (rel === "canonical" && href && canonicalHref === null) canonicalHref = href;
       },
     })
     .on("h1", {
@@ -125,28 +243,70 @@ export async function extractPageMeta(html: string, baseUrl: string): Promise<Pa
     .on("a", {
       element(el) {
         const href = el.getAttribute("href");
-        if (!href) return;
-        if (meta.links.length >= MAX_LINKS) return;
-        const abs = resolve(href, baseUrl);
-        if (abs) meta.links.push(abs);
+        if (href === null) return;
+        const abs = resolveHttpUrl(href, effectiveBaseUrl);
+        if (!abs) return;
+        if (isSameOrigin(abs, priorityOrigin)) {
+          if (seenSameOriginLinks.has(abs)) return;
+          seenSameOriginLinks.add(abs);
+          if (sameOriginLinks.length < MAX_LINKS_PER_SCOPE) sameOriginLinks.push(abs);
+          else sameOriginLinksTruncated = true;
+          return;
+        }
+        if (otherOriginLinks.length < MAX_LINKS_PER_SCOPE) otherOriginLinks.push(abs);
       },
     });
 
   const response = rewriter.transform(new Response(html));
   await response.text(); // drive the rewriter to completion
 
+  meta.canonical = canonicalHref === null ? null : resolveHttpUrl(canonicalHref, effectiveBaseUrl);
+  // Give the crawler and Quick Scan first access to the bounded link budget;
+  // external links cannot crowd same-origin pages out of the result.
+  meta.links = prioritizePageLinks(sameOriginLinks, otherOriginLinks);
+  meta.sameOriginLinksTruncated = sameOriginLinksTruncated;
+
   // Text nodes arrive raw, so "Acme &amp; Co" must be decoded to be measured.
   meta.title = decodeEntities(titleText).trim() || null;
   return meta;
 }
 
-function resolve(href: string, baseUrl: string): string | null {
+async function extractDocumentBaseUrl(html: string, fallbackUrl: string): Promise<string> {
+  let href: string | null = null;
+  const response = new HTMLRewriter()
+    .on("base", {
+      element(el) {
+        if (href === null) href = el.getAttribute("href");
+      },
+    })
+    .transform(new Response(html));
+  await response.text();
+  return resolveDocumentBaseHref(href, fallbackUrl);
+}
+
+/** Resolve a document's first base href when it is a safe HTTP(S) URL. */
+export function resolveDocumentBaseHref(href: string | null, fallbackUrl: string): string {
+  return href === null ? fallbackUrl : resolveHttpUrl(href, fallbackUrl) ?? fallbackUrl;
+}
+
+/** Keep same-origin crawl candidates ahead of external links within a fixed budget. */
+export function prioritizePageLinks(sameOriginLinks: readonly string[], otherOriginLinks: readonly string[]): string[] {
+  return [
+    ...sameOriginLinks.slice(0, MAX_LINKS_PER_SCOPE),
+    ...otherOriginLinks.slice(0, Math.max(0, MAX_LINKS_PER_SCOPE - sameOriginLinks.length)),
+  ];
+}
+
+export function resolveHttpUrl(href: string, baseUrl: string): string | null {
   const trimmed = href.trim();
-  if (trimmed === "" || trimmed.startsWith("#") || trimmed.startsWith("javascript:") || trimmed.startsWith("mailto:") || trimmed.startsWith("tel:")) {
+  if (trimmed === "" || trimmed.startsWith("#")) {
     return null;
   }
   try {
-    return new URL(trimmed, baseUrl).toString();
+    const resolved = new URL(trimmed, baseUrl);
+    const protocol = resolved.protocol.toLowerCase();
+    if (protocol !== "http:" && protocol !== "https:") return null;
+    return resolved.toString();
   } catch {
     return null;
   }
@@ -278,7 +438,7 @@ export async function extractPageDetail(html: string, baseUrl: string): Promise<
       element(el) {
         if (navDepth === 0 || detail.navLinks.length >= MAX_NAV_LINKS) return;
         const href = el.getAttribute("href");
-        const url = href ? resolve(href, baseUrl) : null;
+        const url = href ? resolveHttpUrl(href, baseUrl) : null;
         if (!url) return;
         navLink = { url, text: "" };
         el.onEndTag(() => {

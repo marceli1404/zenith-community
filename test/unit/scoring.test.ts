@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeScores, scoreCategory, reliabilityScore } from "@shared/scoring";
+import { computeScores, scoreCategory, reliabilityScore, scoreFromSnapshot, isOverallScoreAssessed, displayOverallScoreSql } from "@shared/scoring";
 import { GroupedFinding } from "@shared/findings";
 
 function g(
@@ -45,25 +45,125 @@ describe("computeScores", () => {
     // (75 + 85 + 100 + 100) / 4 = 90
     expect(s.overall).toBe(90);
   });
-  it("ignores reliability findings in the audit blend", () => {
+  it("deducts reliability findings from the overall score", () => {
     const s = computeScores([g("reliability", "critical")]);
-    expect(s.overall).toBe(100);
+    expect(s.overall).toBe(75);
+    expect(s.reliabilityDeduction).toBe(25);
   });
-  it("scores an unavailable homepage as zero while retaining category scores", () => {
+  it("charges repeated reliability failures per affected URL, with a per-rule cap", () => {
+    const issue = { ...g("reliability", "high"), affectedUrls: Array.from({ length: 8 }, (_, i) => `https://x/${i}`) };
+    const s = computeScores([issue]);
+    expect(s.reliabilityDeduction).toBe(75);
+    expect(s.overall).toBe(25);
+  });
+  it("scores an unavailable homepage as zero and marks category scores unassessed", () => {
     const unavailable = g("reliability", "critical", "reliability.homepage-unavailable");
     const byFetchFailure = computeScores([], { siteAvailable: false });
     const byFinding = computeScores([unavailable]);
 
     expect(byFetchFailure.overall).toBe(0);
     expect(byFinding.overall).toBe(0);
-    expect(byFinding.categories).toEqual({ security: 100, accessibility: 100, performance: 100, seo: 100 });
+    expect(byFinding.categories).toEqual({ security: null, accessibility: null, performance: null, seo: null });
+  });
+});
+
+describe("scoreFromSnapshot", () => {
+  it("restores persisted values without recalculating from findings", () => {
+    expect(scoreFromSnapshot({
+      overall: 42,
+      security: 88,
+      accessibility: 91,
+      performance: 75,
+      seo: 100,
+      categoriesAssessed: true,
+      reliabilityDeduction: 25,
+    })).toEqual({
+      overall: 42,
+      categories: { security: 88, accessibility: 91, performance: 75, seo: 100 },
+      reliabilityDeduction: 25,
+    });
+  });
+
+  it("keeps unavailable category data unassessed and marks unknown legacy impact", () => {
+    expect(scoreFromSnapshot({
+      overall: 0,
+      security: 0,
+      accessibility: 0,
+      performance: 0,
+      seo: 0,
+      categoriesAssessed: false,
+      reliabilityDeduction: null,
+    })).toEqual({
+      overall: 0,
+      categories: { security: null, accessibility: null, performance: null, seo: null },
+      reliabilityDeduction: null,
+    });
+  });
+
+  it("does not treat a robots-blocked audit's storage sentinel as a real overall score", () => {
+    const robotsFinding = g("reliability", "info", "reliability.robots-disallowed");
+    expect(isOverallScoreAssessed(false, [robotsFinding])).toBe(false);
+    expect(isOverallScoreAssessed(false, [g("reliability", "critical", "reliability.homepage-unavailable")])).toBe(true);
+    expect(scoreFromSnapshot({
+      overall: 0,
+      overallAssessed: false,
+      security: 0,
+      accessibility: 0,
+      performance: 0,
+      seo: 0,
+      categoriesAssessed: false,
+      reliabilityDeduction: null,
+    }).overall).toBeNull();
+  });
+
+  it("forces legacy homepage-outage snapshots to zero and keeps their categories unassessed", () => {
+    expect(scoreFromSnapshot({
+      overall: 80,
+      security: 100,
+      accessibility: 100,
+      performance: 100,
+      seo: 100,
+      categoriesAssessed: true,
+      homepageUnavailable: true,
+      reliabilityDeduction: 0,
+    })).toEqual({
+      overall: 0,
+      categories: { security: null, accessibility: null, performance: null, seo: null },
+      reliabilityDeduction: 0,
+    });
+  });
+
+  it("normalizes a legacy homepage outage with an unknown deduction to zero impact", () => {
+    expect(scoreFromSnapshot({
+      overall: 0,
+      security: 0,
+      accessibility: 0,
+      performance: 0,
+      seo: 0,
+      categoriesAssessed: false,
+      homepageUnavailable: true,
+      reliabilityDeduction: null,
+    })).toEqual({
+      overall: 0,
+      categories: { security: null, accessibility: null, performance: null, seo: null },
+      reliabilityDeduction: 0,
+    });
+  });
+
+  it("uses an assessed score in summaries only when categories or a measured homepage outage support it", () => {
+    const sql = displayOverallScoreSql("ar");
+    expect(sql).toContain("COALESCE(ar.categories_assessed, 0) <> 0");
+    expect(sql).toContain("reliability.homepage-unavailable");
+    expect(sql.indexOf("THEN 0")).toBeLessThan(sql.indexOf("THEN ar.overall_score"));
+    expect(sql).toContain("ELSE NULL END");
+    expect(() => displayOverallScoreSql("ar; DROP TABLE audit_results")).toThrow("Invalid audit-result SQL alias");
   });
 });
 
 describe("reliabilityScore", () => {
   it("computes uptime percentage", () => {
     expect(reliabilityScore(99, 100)).toBe(99);
-    expect(reliabilityScore(0, 0)).toBe(100);
+    expect(reliabilityScore(0, 0)).toBeNull();
     expect(reliabilityScore(1, 2)).toBe(50);
   });
 });

@@ -15,7 +15,7 @@
  * another flow is rejected.
  */
 
-import type { Bindings } from "../env";
+import { isProductionEnvironment, type Bindings } from "../env";
 
 export interface TurnstileResult {
   ok: boolean;
@@ -42,10 +42,7 @@ export function turnstileConfigured(env: Bindings): boolean {
   return typeof env.TURNSTILE_SECRET_KEY === "string" && env.TURNSTILE_SECRET_KEY.length > 0;
 }
 
-/** Hostnames a Turnstile token is allowed to have been issued for. Must cover
- *  every origin that actually serves the scan widget. Post domain-split the
- *  public scan lives on the Zenith app host (zenith.me.uk), so
- *  the token's hostname is that — not APP_URL's Labs-root host. */
+/** Hostnames a Turnstile token may be issued for in this environment. */
 function allowedHostnames(env: Bindings): string[] {
   const hosts = new Set<string>();
   try {
@@ -53,9 +50,10 @@ function allowedHostnames(env: Bindings): string[] {
   } catch {
     /* ignore malformed APP_URL */
   }
-  hosts.add("localhost");
-  hosts.add("127.0.0.1");
-  hosts.add("localhost");
+  if (!isProductionEnvironment(env)) {
+    hosts.add("localhost");
+    hosts.add("127.0.0.1");
+  }
   return [...hosts];
 }
 
@@ -66,7 +64,7 @@ export async function verifyTurnstile(
   expectedAction?: string,
 ): Promise<TurnstileResult> {
   const secret = env.TURNSTILE_SECRET_KEY;
-  const isProduction = env.ENVIRONMENT === "production";
+  const isProduction = isProductionEnvironment(env);
 
   if (!secret) {
     if (isProduction) {
@@ -88,21 +86,23 @@ export async function verifyTurnstile(
   if (remoteIp) body.append("remoteip", remoteIp);
 
   let data: SiteverifyResponse;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
     const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
       method: "POST",
       body,
       signal: controller.signal,
     });
-    clearTimeout(timer);
+    if (!res.ok) throw new Error(`Siteverify returned HTTP ${res.status}.`);
     data = (await res.json()) as SiteverifyResponse;
   } catch (err) {
     // Siteverify unreachable/timed out. Fail closed — the IP rate limiter is
     // still the backstop, but we do not hand out free passes on outage.
     console.error("Turnstile siteverify unavailable", err instanceof Error ? err.message : err);
     return { ok: false, reason: "verify_unavailable" };
+  } finally {
+    clearTimeout(timer);
   }
 
   if (data.success !== true) {
@@ -110,13 +110,14 @@ export async function verifyTurnstile(
   }
 
   // Bind the token to our hostnames (defeats tokens minted for another site).
-  if (data.hostname && !allowedHostnames(env).includes(data.hostname)) {
-    console.warn("Turnstile hostname mismatch", data.hostname);
+  const hostname = data.hostname?.toLowerCase();
+  if (!hostname || !allowedHostnames(env).some((allowed) => allowed.toLowerCase() === hostname)) {
+    console.warn("Turnstile hostname mismatch", data.hostname ?? "missing");
     return { ok: false, reason: "hostname_mismatch" };
   }
 
   // Bind the token to the flow it was issued for, when the caller specifies one.
-  if (expectedAction && data.action && data.action !== expectedAction) {
+  if (expectedAction && data.action !== expectedAction) {
     console.warn("Turnstile action mismatch", data.action);
     return { ok: false, reason: "action_mismatch" };
   }

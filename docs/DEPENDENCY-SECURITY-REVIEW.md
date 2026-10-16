@@ -1,26 +1,34 @@
-# Dependency security review
+# Historical dependency security review
 
-Reviewed 14 October 2026 against the Community release candidate's clean npm
-install and production build.
+Reviewed 14 October 2026 against that Community release candidate's clean npm
+install and production build. This is a historical assessment, not the current
+dependency inventory. A fresh `npm audit` on the current `package-lock.json` on
+16 October 2026 reports zero vulnerabilities, and the current lockfile does not
+contain `extract-zip`. The original 14-advisory/2-critical report from the
+historical review was not recovered, so its findings cannot be reconciled one
+by one against this result.
 
-## Puppeteer archive extraction advisory
+## Advisory found in the 14 October candidate
 
-`npm audit` reports three high-severity dependency entries through
-`@cloudflare/puppeteer` → `@puppeteer/browsers` → `extract-zip`. The current
-`extract-zip` release is affected by [GHSA-7pqw-9j4j-h8q3](https://github.com/advisories/GHSA-7pqw-9j4j-h8q3); the advisory lists no patched
-version. npm's suggested downgrade for `@cloudflare/puppeteer` is a major
-version change and is not applied without compatibility evidence.
+At review time, `npm audit` reported three high-severity dependency entries through
+`@cloudflare/puppeteer` → `@puppeteer/browsers` → `extract-zip`. The audited
+`extract-zip` version was listed as affected by
+[GHSA-7pqw-9j4j-h8q3](https://github.com/advisories/GHSA-7pqw-9j4j-h8q3); at
+that time, the advisory listed no patched version. npm suggested a major
+version downgrade for `@cloudflare/puppeteer`, which was not applied without
+compatibility evidence.
 
-The affected extraction path installs browser archives. This application
-does not install browser binaries. Its audit and PDF code call
+The affected extraction path installs browser archives. The 14 October
+candidate did not install browser binaries. Its audit and PDF code called
 `@cloudflare/puppeteer.launch` with Cloudflare's Browser Rendering binding;
-that launch path acquires a remote session and connects to it. The built
-Worker bundle contains no `extract-zip` or browser archive installation
-code. There are no install scripts in this dependency path that download or
-extract a browser during `npm ci`.
+that launch path acquired a remote session and connected to it. The built
+Worker bundle inspected for that review contained no `extract-zip` or browser
+archive installation code. No install scripts in the inspected dependency
+path downloaded or extracted a browser during `npm ci`.
 
-Assessment: the audit finding remains visible and should be rechecked on every
-dependency update. Based on the current source and built Worker bundle, the
-vulnerable archive extraction code is not reachable in the shipped Community
-application. Reassess before adding local browser installation, a self-hosted
-browser launcher, or another path that extracts downloaded archives.
+Assessment at that time: the report kept the audit finding visible for review
+on later dependency updates. Based on the source and built Worker bundle
+inspected on 14 October, the vulnerable archive extraction code was not
+reachable in that Community candidate. The report recommended reassessing
+this if local browser installation, a self-hosted browser launcher, or another
+archive-extraction path were added.

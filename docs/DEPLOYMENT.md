@@ -1,6 +1,6 @@
 # Deployment
 
-Each deployment is operated by its owner in a separate Cloudflare account. The repository's default configuration uses local Wrangler state and placeholder resource names; replace them with resources created for your own instance before deploying.
+Operate each deployment in a Cloudflare account you control. The checked-in configuration uses Community-specific resource names and Wrangler's local state for development. Create separate resources for your deployment before deploying; never point it at Zenith production resources.
 
 ## 1. Install and configure
 
@@ -9,7 +9,7 @@ npm ci
 wrangler login
 ```
 
-Edit `wrangler.jsonc` and set the D1 `database_id` and names for your own D1 database, R2 bucket, and three Queues (`zenith-monitor`, `zenith-audit`, `zenith-email`). Keep the browser binding and rate-limit binding names aligned with the Worker code. Do not copy production IDs or secrets from another deployment.
+Edit `wrangler.jsonc` and set the unique Worker name, D1 `database_id`, D1 database name, R2 bucket name, and Queue names for your own instance. The defaults are `zenith-community-app`, `zenith-community-db`, `zenith-community-app-reports`, `zenith-community-monitor`, `zenith-community-audit`, and `zenith-community-email`; the email consumer also configures `zenith-community-email-dlq` for messages that exhaust retries. Cloudflare creates the configured dead-letter queue if it does not exist. Choose a fresh positive integer for `ratelimits[0].namespace_id` in your Cloudflare account before deployment; Workers that use the same namespace share counters. Keep the binding names aligned with the Worker code. Do not copy production resource IDs or secrets from another deployment.
 
 The Worker uses a browser binding for best-effort browser checks and PDF generation. Confirm that Browser Rendering is available for your Cloudflare account before relying on those outputs.
 
@@ -25,7 +25,7 @@ For your own remote database, first set its ID in your local `wrangler.jsonc`, r
 npm run db:migrate:remote
 ```
 
-The remote command is intentionally separate from local setup. Never point it at a production service unless you have reviewed the migration and have a recovery plan.
+The migrations include an email outbox table. Pending rows can contain one-time verification codes or password-reset links, and are deleted after queueing or expiry. Protect D1 access and backups accordingly. The remote command is intentionally separate from local setup. Never point it at a production service unless you have reviewed the migration and have a recovery plan.
 
 ## 3. Configure secrets and services
 

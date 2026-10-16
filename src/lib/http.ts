@@ -16,7 +16,8 @@
 
 import { validatePublicTarget, type SsrfRejectCode } from "@shared/ssrf";
 
-export const USER_AGENT = "ZenithBot/1.0 (+https://zenith.me.uk/security)";
+export const USER_AGENT = "ZenithCommunityBot/1.0";
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 export interface SafeFetchOptions {
   method?: "GET" | "HEAD" | "POST" | "PUT";
@@ -28,7 +29,13 @@ export interface SafeFetchOptions {
   readBody?: boolean;
   /** Optional request body for outbound POST/PUT calls. Never used for GET/HEAD. */
   body?: string;
+  /** Optional per-hop policy, called after target validation but before fetching a redirect. */
+  redirectPolicy?: (url: string, remainingMs: number) => Promise<RedirectPolicyDecision>;
 }
+
+export type RedirectPolicyDecision =
+  | { allowed: true }
+  | { allowed: false; code: string; reason: string };
 
 export interface SafeFetchResult {
   ok: true;
@@ -49,11 +56,16 @@ export interface SafeFetchError {
   reason: string;
   /** Present when the failure was an SSRF rejection. */
   ssrfCode?: SsrfRejectCode;
+  /** Resolved target when redirect handling stops before following the redirect. */
+  redirectUrl?: string;
+  /** Machine-readable reason when an optional redirect policy blocks a hop. */
+  policyCode?: string;
 }
 
 export type SafeFetchErrorCode =
   | "blocked_target"
   | "blocked_redirect"
+  | "redirect_policy"
   | "too_many_redirects"
   | "timeout"
   | "dns_or_network"
@@ -109,80 +121,142 @@ export async function safeFetch(
       clearTimeout(timer);
       return classifyFetchError(err);
     }
-    clearTimeout(timer);
 
-    // Manual redirect handling with per-hop validation.
-    if (res.status >= 300 && res.status < 400 && res.headers.has("location")) {
-      // A publish (POST/PUT) carries a body and credentials: never replay it
-      // somewhere else. The destination must be configured with its final URL.
-      if (opts.method === "POST" || opts.method === "PUT") {
+    try {
+      // Manual redirect handling with per-hop validation. Other 3xx responses
+      // (for example 300, 304, or 305) are not redirects to follow.
+      if (REDIRECT_STATUSES.has(res.status) && res.headers.has("location")) {
+        // A publish (POST/PUT) carries a body and credentials: never replay it
+        // somewhere else. The destination must be configured with its final URL.
+        if (opts.method === "POST" || opts.method === "PUT") {
+          try {
+            await res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          return { ok: false, errorCode: "blocked_redirect", reason: "The server redirected the request. Use the destination's final address." };
+        }
+        redirectCount += 1;
+        const location = res.headers.get("location")!;
+        let nextUrl: string;
+        try {
+          nextUrl = new URL(location, currentUrl).toString();
+        } catch {
+          try {
+            await res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          return { ok: false, errorCode: "blocked_redirect", reason: "Invalid redirect target." };
+        }
+        if (redirectCount > opts.maxRedirects) {
+          try {
+            await res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          return {
+            ok: false,
+            errorCode: "too_many_redirects",
+            reason: "Too many redirects.",
+            redirectUrl: nextUrl,
+          };
+        }
+        const check = validatePublicTarget(nextUrl);
+        if (!check.ok) {
+          try {
+            await res.body?.cancel();
+          } catch {
+            /* ignore */
+          }
+          return {
+            ok: false,
+            errorCode: "blocked_redirect",
+            reason: `Redirect target could not be scanned: ${check.reason}`,
+            ssrfCode: check.code,
+          };
+        }
+        if (opts.redirectPolicy) {
+          const policyRemainingMs = opts.timeoutMs - (Date.now() - startedAt);
+          if (policyRemainingMs <= 0) {
+            try {
+              await res.body?.cancel();
+            } catch {
+              /* ignore */
+            }
+            return { ok: false, errorCode: "timeout", reason: "Request timed out." };
+          }
+          let decision: RedirectPolicyDecision;
+          try {
+            decision = await opts.redirectPolicy(check.url, policyRemainingMs);
+          } catch {
+            decision = {
+              allowed: false,
+              code: "policy_check_failed",
+              reason: "The redirect target could not be checked against the crawl policy.",
+            };
+          }
+          if (!decision.allowed) {
+            try {
+              await res.body?.cancel();
+            } catch {
+              /* ignore */
+            }
+            return {
+              ok: false,
+              errorCode: "redirect_policy",
+              reason: decision.reason,
+              redirectUrl: check.url,
+              policyCode: decision.code,
+            };
+          }
+        }
+        // Credentials are for the origin they were configured for, not wherever
+        // it redirects to.
+        if (new URL(check.url).origin !== new URL(currentUrl).origin) {
+          headers = Object.fromEntries(
+            Object.entries(headers).filter(([name]) => !["authorization", "cookie", "proxy-authorization"].includes(name.toLowerCase())),
+          );
+        }
+        currentUrl = check.url;
+        // Drain the redirect body to free the connection.
         try {
           await res.body?.cancel();
         } catch {
           /* ignore */
         }
-        return { ok: false, errorCode: "blocked_redirect", reason: "The server redirected the request. Use the destination's final address." };
+        continue;
       }
-      redirectCount += 1;
-      if (redirectCount > opts.maxRedirects) {
-        return { ok: false, errorCode: "too_many_redirects", reason: "Too many redirects." };
-      }
-      const location = res.headers.get("location")!;
-      let nextUrl: string;
-      try {
-        nextUrl = new URL(location, currentUrl).toString();
-      } catch {
-        return { ok: false, errorCode: "blocked_redirect", reason: "Invalid redirect target." };
-      }
-      const check = validatePublicTarget(nextUrl);
-      if (!check.ok) {
-        return {
-          ok: false,
-          errorCode: "blocked_redirect",
-          reason: `Redirect to a non-public target was blocked: ${check.reason}`,
-          ssrfCode: check.code,
-        };
-      }
-      // Credentials are for the origin they were configured for, not wherever
-      // it redirects to.
-      if (new URL(check.url).origin !== new URL(currentUrl).origin) {
-        headers = Object.fromEntries(
-          Object.entries(headers).filter(([name]) => !["authorization", "cookie", "proxy-authorization"].includes(name.toLowerCase())),
-        );
-      }
-      currentUrl = check.url;
-      // Drain the redirect body to free the connection.
-      try {
-        await res.body?.cancel();
-      } catch {
-        /* ignore */
-      }
-      continue;
-    }
 
-    const responseMs = Date.now() - startedAt;
-    const result: SafeFetchResult = {
-      ok: true,
-      finalUrl: currentUrl,
-      status: res.status,
-      headers: res.headers,
-      responseMs,
-      redirectCount,
-      contentLength: numberOrUndefined(res.headers.get("content-length")),
-    };
+      const responseMs = Date.now() - startedAt;
+      const result: SafeFetchResult = {
+        ok: true,
+        finalUrl: currentUrl,
+        status: res.status,
+        headers: res.headers,
+        responseMs,
+        redirectCount,
+        contentLength: numberOrUndefined(res.headers.get("content-length")),
+      };
 
-    if (opts.readBody && res.body) {
-      const { text, truncated } = await readBounded(res, opts.maxBytes);
-      result.body = text;
-      result.bodyTruncated = truncated;
-    } else {
-      try {
-        await res.body?.cancel();
-      } catch {
-        /* ignore */
+      if (opts.readBody && res.body) {
+        const { text, truncated } = await readBounded(res, opts.maxBytes);
+        result.body = text;
+        result.bodyTruncated = truncated;
+      } else {
+        try {
+          await res.body?.cancel();
+        } catch {
+          /* ignore */
+        }
       }
+      return result;
+    } catch (err) {
+      return classifyFetchError(err);
+    } finally {
+      // Keep the deadline active until a requested response body has been read.
+      clearTimeout(timer);
     }
-    return result;
   }
 }
 

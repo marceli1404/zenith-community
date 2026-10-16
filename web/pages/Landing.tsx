@@ -1,5 +1,6 @@
 import { PublicPage } from "../components/PublicChrome";
 import { ButtonLink, Container, Section, SectionLabel, TextLink } from "../components/editorial";
+import { QuickScan } from "../components/home/QuickScan";
 import { useDocumentTitle } from "../lib/useTitle";
 
 export default function Landing() {
@@ -14,6 +15,16 @@ export default function Landing() {
             <p className="lx-hero__lead">Monitor availability, review technical checks, and keep an audit history in an instance you operate.</p>
             <div className="lx-hero__action"><ButtonLink to="/signup">Create a Community account</ButtonLink><TextLink to="/methodology">See how scoring works</TextLink></div>
           </div>
+        </Container>
+      </Section>
+      <Section id="quick-scan" tone="ivory" rhythm="open" labelledBy="quick-scan-title">
+        <Container>
+          <header className="lx-sectionhead">
+            <SectionLabel>Quick scan</SectionLabel>
+            <h2 className="lx-heading lx-heading--section" id="quick-scan-title">Check whether a site is ready for monitoring.</h2>
+            <p className="lx-body">When enabled, Quick Scan checks the homepage and up to eight same-origin links. Public scans may be disabled on installations that have not configured a dedicated Turnstile widget. See the <TextLink to="/methodology">scoring method</TextLink> to learn what the scan can assess and when it withholds a score.</p>
+          </header>
+          <QuickScan />
         </Container>
       </Section>
       <Section tone="ivory" rhythm="open">

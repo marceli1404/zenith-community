@@ -25,4 +25,8 @@ export async function downsampleAndPrune(env: Bindings): Promise<void> {
   ).bind(hourlyCutoff).run();
   await env.DB.prepare(`DELETE FROM uptime_hourly WHERE bucket_start < ?`).bind(hourlyCutoff).run();
   await env.DB.prepare(`DELETE FROM uptime_daily WHERE bucket_start < ?`).bind(nowMs - 730 * DAY).run();
+  await env.DB.prepare(
+    `DELETE FROM processed_jobs
+     WHERE (status = 'sent' AND created_at < ?) OR (status = 'processing' AND lease_expires_at < ?)`,
+  ).bind(nowMs - 30 * DAY, nowMs - 7 * DAY).run();
 }

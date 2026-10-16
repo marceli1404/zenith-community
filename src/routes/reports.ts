@@ -1,7 +1,7 @@
 /**
  * Authenticated access to R2-stored assets (screenshots, PDF reports). Access is
  * NEVER granted merely because the caller knows the object key — ownership is
- * verified in D1 first (§53).
+ * verified in D1 first.
  */
 
 import { Hono } from "hono";
@@ -9,7 +9,9 @@ import type { AppEnv } from "../middleware";
 import { requireAuth } from "../middleware";
 import { all, first, now, run } from "../db";
 import { groupFindings, type Finding } from "@shared/findings";
-import { computeScores } from "@shared/scoring";
+import { isOverallScoreAssessed, scoreFromSnapshot } from "@shared/scoring";
+import { parseEvidenceJson } from "@shared/reliability";
+import { sanitizeAuditEvidence, sanitizeAuditUrl } from "@shared/audit-privacy";
 import { generateReportHtml } from "../report/html";
 import { renderPdf } from "../report/pdf";
 
@@ -64,7 +66,8 @@ reports.post("/pdf/:auditResultId/generate", async (c) => {
 
   const result = await first<{
     overall_score: number; performance_score: number; accessibility_score: number;
-    seo_score: number; security_score: number; page_count: number; broken_link_count: number;
+    seo_score: number; security_score: number; categories_assessed: number; reliability_deduction: number | null;
+    page_count: number; broken_link_count: number;
     site_id: string | null;
   }>(c.env.DB, `SELECT * FROM audit_results WHERE id = ?`, resultId);
   if (!result) return c.json({ error: "Not found." }, 404);
@@ -75,10 +78,21 @@ reports.post("/pdf/:auditResultId/generate", async (c) => {
   }>(c.env.DB, `SELECT * FROM findings WHERE audit_result_id = ?`, resultId);
   const findings: Finding[] = findingRows.map((r) => ({
     ruleId: r.rule_id, category: r.category, severity: r.severity, title: r.title,
-    description: r.description, pageUrl: r.page_url ?? "", evidence: {}, recommendation: r.recommendation,
+    description: r.description, pageUrl: sanitizeAuditUrl(r.page_url ?? ""),
+    evidence: sanitizeAuditEvidence(parseEvidenceJson(r.evidence_json), r.page_url ?? ""), recommendation: r.recommendation,
   }));
   const grouped = groupFindings(findings);
-  const scores = computeScores(grouped);
+  const scores = scoreFromSnapshot({
+    overall: result.overall_score,
+    homepageUnavailable: grouped.some((finding) => finding.ruleId === "reliability.homepage-unavailable"),
+    security: result.security_score,
+    accessibility: result.accessibility_score,
+    performance: result.performance_score,
+    seo: result.seo_score,
+    categoriesAssessed: result.categories_assessed !== 0 && !grouped.some((finding) => finding.ruleId === "reliability.homepage-unavailable"),
+    overallAssessed: isOverallScoreAssessed(result.categories_assessed !== 0, grouped),
+    reliabilityDeduction: result.reliability_deduction,
+  });
 
   const origin = result.site_id
     ? (await first<{ normalized_origin: string }>(c.env.DB, `SELECT normalized_origin FROM sites WHERE id = ?`, result.site_id))?.normalized_origin ?? "your website"
@@ -98,7 +112,10 @@ reports.post("/pdf/:auditResultId/generate", async (c) => {
   if (!pdf) return c.json({ error: "Report generation failed. Please try again." }, 502);
 
   const key = `users/${userId}/reports/${resultId}.pdf`;
-  await c.env.REPORTS_BUCKET.put(key, pdf, { httpMetadata: { contentType: "application/pdf" } });
+  await c.env.REPORTS_BUCKET.put(key, pdf, {
+    httpMetadata: { contentType: "application/pdf" },
+    customMetadata: { auditUrlRedactionVersion: "2" },
+  });
   await run(c.env.DB, `UPDATE audit_results SET report_key = ? WHERE id = ?`, key, resultId);
 
   return c.json({ ok: true, resultId });
@@ -112,6 +129,9 @@ reports.get("/pdf/:auditResultId", async (c) => {
   }
   const object = await c.env.REPORTS_BUCKET.get(asset.report_key);
   if (!object) return c.json({ error: "Not found." }, 404);
+  if (object.customMetadata?.auditUrlRedactionVersion !== "2") {
+    return c.json({ error: "This report needs regeneration before download.", code: "report_refresh_required" }, 409);
+  }
   return new Response(object.body, {
     headers: {
       "content-type": "application/pdf",

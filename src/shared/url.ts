@@ -30,9 +30,9 @@ export function normalizeOrigin(input: string): string | null {
 }
 
 /**
- * Canonicalize a full URL for crawl de-duplication: normalize origin, resolve
- * against a base, strip the fragment, drop a trailing slash on non-root paths,
- * and remove common tracking query params. Returns null if unparseable.
+ * Canonicalize a URL only enough to remove fragment-only duplicates. Paths and
+ * query parameters are preserved because servers may return different pages
+ * for slash variants or tracking-looking parameters. Returns null if unparseable.
  */
 export function canonicalizeUrl(input: string, base?: string): string | null {
   let url: URL;
@@ -46,26 +46,6 @@ export function canonicalizeUrl(input: string, base?: string): string | null {
 
   url.hostname = url.hostname.toLowerCase();
   url.hash = "";
-
-  const TRACKING = [
-    "utm_source",
-    "utm_medium",
-    "utm_campaign",
-    "utm_term",
-    "utm_content",
-    "gclid",
-    "fbclid",
-    "mc_cid",
-    "mc_eid",
-    "ref",
-  ];
-  for (const key of TRACKING) url.searchParams.delete(key);
-  // Sort remaining params for stable comparison.
-  url.searchParams.sort();
-
-  let path = url.pathname;
-  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
-  url.pathname = path === "" ? "/" : path;
 
   return url.toString();
 }
@@ -86,6 +66,8 @@ const UNSAFE_PATH_PATTERNS = [
   /\bsign[-_]?out\b/i,
   /\bdelete\b/i,
   /\bremove\b/i,
+  /\b(?:un)?subscribe\b/i,
+  /\b(?:cancel|opt[-_]?out)\b/i,
   /\bcart\b/i,
   /\bcheckout\b/i,
   /\badmin\b/i,
@@ -94,7 +76,19 @@ const UNSAFE_PATH_PATTERNS = [
 ];
 
 export function isUnsafeCrawlPath(pathname: string): boolean {
-  return UNSAFE_PATH_PATTERNS.some((re) => re.test(pathname));
+  let path = pathname;
+  for (let depth = 0; depth <= 8; depth++) {
+    if (UNSAFE_PATH_PATTERNS.some((re) => re.test(path))) return true;
+    if (/%(?![0-9a-f]{2})/i.test(path)) return true;
+    if (!/%[0-9a-f]{2}/i.test(path)) return false;
+    if (depth === 8) return true;
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      return true;
+    }
+  }
+  return true;
 }
 
 /** Extract the registrable-ish label for display (best effort, not PSL-aware). */

@@ -8,11 +8,12 @@ import { IncidentTrace, EmptyIllustration } from "../components/Observation";
 
 interface StatusData {
   name: string;
-  state: "operational" | "degraded" | "down";
-  uptime24h: number;
-  uptime30d: number;
+  state: "operational" | "degraded" | "down" | "unknown";
+  uptime24h: number | null;
+  uptime30d: number | null;
   avgResponseMs: number | null;
   lastResponseMs: number | null;
+  lastCheckedAt: number | null;
   openSince: number | null;
   incidents: Array<{ startedAt: number; resolvedAt: number | null; reason: string | null }>;
   updatedAt: number;
@@ -22,6 +23,7 @@ const STATE_META = {
   operational: { label: "All systems operational", color: "hsl(var(--good))" },
   degraded: { label: "Degraded performance", color: "hsl(var(--warn))" },
   down: { label: "Service disruption", color: "hsl(var(--bad))" },
+  unknown: { label: "Monitoring status unavailable", color: "hsl(var(--muted))" },
 };
 
 export default function Status() {
@@ -55,7 +57,7 @@ export default function Status() {
       <header className="lx-status__bar">
         <div className="lx-container">
           <Logo />
-          <span className="lx-status__updated">Updated {relativeTime(data.updatedAt)}</span>
+          <span className="lx-status__updated">{data.lastCheckedAt ? `Last checked ${relativeTime(data.lastCheckedAt)}` : "No check recorded yet"}</span>
         </div>
       </header>
       <main id="main" className="lx-main">
@@ -74,15 +76,15 @@ export default function Status() {
           <dl className="lx-status__stats lx-enter lx-enter--late">
             <div>
               <dt className="lx-status__label">24-hour uptime</dt>
-              <dd className="lx-status__value lx-numeric">{data.uptime24h}%</dd>
+              <dd className="lx-status__value lx-numeric">{data.uptime24h == null ? "No checks in this period" : `${data.uptime24h}%`}</dd>
             </div>
             <div>
               <dt className="lx-status__label">30-day uptime</dt>
-              <dd className="lx-status__value lx-numeric">{data.uptime30d}%</dd>
+              <dd className="lx-status__value lx-numeric">{data.uptime30d == null ? "No checks in this period" : `${data.uptime30d}%`}</dd>
             </div>
             <div>
               <dt className="lx-status__label">Average response</dt>
-              <dd className="lx-status__value lx-numeric">{data.avgResponseMs != null ? `${data.avgResponseMs} ms` : "-"}</dd>
+              <dd className="lx-status__value lx-numeric">{data.avgResponseMs != null ? `${data.avgResponseMs} ms` : "No response data"}</dd>
             </div>
           </dl>
 

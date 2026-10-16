@@ -5,8 +5,8 @@
  *   VISUAL_BASE_URL=https://your-community-instance.example npm run visual:review
  *
  * Captures each review surface across viewports and both themes into
- * artifacts/visual-review/ as <surface>-<viewport>-<theme>.png. Astra reviews
- * the rendered PNGs (never approves from code alone). Files are git-ignored;
+ * artifacts/visual-review/ as <surface>-<viewport>-<theme>.png. Review the
+ * rendered screenshots alongside the source. Files are git-ignored;
  * only the latest set is kept locally / as CI artifacts.
  *
  * If VISUAL_BASE_URL is unset, it boots `vite preview` against a prior build.
@@ -23,7 +23,7 @@ import { chromium } from "@playwright/test";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "artifacts", "visual-review");
 
-/** Review surfaces. Add the Labs root once it exists as a route. */
+/** Public Community surfaces included in the visual review. */
 const SURFACES = [
   { name: "scope-hero", path: "/", full: false },
   { name: "scope-security", path: "/security", full: true },

@@ -89,8 +89,7 @@
 .lx-chip:active,
 .lx-iconbutton:active,
 .lx-code__copy:active,
-.lx-gallery__control:active,
-.lx-switch__control:active {
+.lx-gallery__control:active {
   transform: scale(0.97);
 }
 .lx-iconbutton,
@@ -399,33 +398,11 @@
   to { opacity: 1; transform: none; }
 }
 
-/* Payment confirmed: the disc pops once and the rings ripple outward. Rare, so it may bounce. */
-.purchase-result__signal .is-confirmed {
-  animation: purchase-pop 420ms var(--ease-spring) backwards;
-}
-.purchase-result__signal[data-state="confirmed"] > span {
-  animation: purchase-ripple 620ms var(--lx-ease-out) backwards;
-  animation-delay: calc(120ms + var(--ring) * 70ms);
-}
-@keyframes purchase-pop {
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: none; }
-}
-@keyframes purchase-ripple {
-  0% { transform: scale(1); }
-  45% { transform: scale(1.07); border-color: hsl(var(--good) / 0.5); }
-  100% { transform: scale(1); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .console-drawer[open],
   .copy-swap,
-  .audit-stage,
-  .purchase-result__signal .is-confirmed {
+  .audit-stage {
     animation-name: lx-fade;
-  }
-  .purchase-result__signal[data-state="confirmed"] > span {
-    animation: none;
   }
 }
 

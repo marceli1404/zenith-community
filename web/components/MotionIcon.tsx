@@ -13,7 +13,6 @@ export type IconMotion =
   | "download"
   | "logout"
   | "orbit"
-  | "payment"
   | "refresh"
   | "scan"
   | "search"

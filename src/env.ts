@@ -9,6 +9,7 @@ export interface Bindings {
   MONITOR_QUEUE: Queue<MonitorJob>;
   AUDIT_QUEUE: Queue<AuditJob>;
   EMAIL_QUEUE: Queue<EmailJob>;
+  EMAIL?: SendEmail;
   ASSETS: Fetcher;
   PUBLIC_SCAN_LIMITER: RateLimiter;
   API_LIMITER?: RateLimiter;
@@ -26,7 +27,6 @@ export interface Bindings {
   GITHUB_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
-  EMAIL?: unknown;
 }
 
 export interface RateLimiter {
@@ -37,6 +37,8 @@ export interface MonitorJob {
   type: "check";
   monitorId: string;
   siteId: string;
+  /** Stable id across queue redelivery; generated when the cron job is enqueued. */
+  checkId?: string;
 }
 
 export interface AuditJob {
@@ -50,12 +52,16 @@ export interface EmailJob {
   to: string;
   data: Record<string, unknown>;
   dedupeKey?: string;
+  /** Old time-sensitive auth links and codes must never be delivered after expiry. */
+  expiresAt?: number;
 }
 
 const configSchema = z.object({
   appName: z.string().trim().min(1).default("Zenith Community"),
   appUrl: z.string().url(),
-  environment: z.enum(["development", "preview", "production"]).catch("development"),
+  // Missing or invalid deployment mode must not silently enable development
+  // security exceptions. Local Wrangler config sets development explicitly.
+  environment: z.enum(["development", "preview", "production"]).catch("production"),
   emailProvider: z.enum(["cloudflare", "resend"]).catch("cloudflare"),
   emailFrom: z.string().min(1).catch("alerts@example.com"),
   turnstileSiteKey: z.string().catch(""),
@@ -66,6 +72,11 @@ export type AppConfig = z.infer<typeof configSchema> & {
   authProviders: { google: boolean; github: boolean };
   emailEnabled: boolean;
 };
+
+/** Only explicit local/preview modes may use development-only security bypasses. */
+export function isProductionEnvironment(env: Bindings): boolean {
+  return env.ENVIRONMENT !== "development" && env.ENVIRONMENT !== "preview";
+}
 
 export function computeEmailEnabled(env: Bindings): boolean {
   const provider = (env.EMAIL_PROVIDER ?? "cloudflare").toLowerCase();
@@ -85,7 +96,7 @@ export function loadConfig(env: Bindings): AppConfig {
   });
   return {
     ...parsed,
-    isProduction: parsed.environment === "production",
+    isProduction: isProductionEnvironment(env),
     authProviders: {
       google: !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
       github: !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET),

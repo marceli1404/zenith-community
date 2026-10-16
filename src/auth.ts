@@ -12,7 +12,7 @@
 
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { emailOTP, twoFactor } from "better-auth/plugins";
-import { computeEmailEnabled, type Bindings } from "./env";
+import { computeEmailEnabled, isProductionEnvironment, type Bindings } from "./env";
 import { enqueueEmail } from "./lib/email";
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@shared/password-policy";
 
@@ -65,7 +65,8 @@ function buildAuth(env: Bindings, baseURL: string): Auth {
   // can actually deliver mail — otherwise a new user would be permanently locked
   // out. So it's gated on both production AND a deliverable email provider.
   const emailDeliverable = computeEmailEnabled(env);
-  const requireVerification = env.ENVIRONMENT === "production" && emailDeliverable;
+  const isProduction = isProductionEnvironment(env);
+  const requireVerification = isProduction && emailDeliverable;
 
   const auth = betterAuth({
     // Pass the raw D1 binding: Better Auth detects it (batch/exec/prepare) and
@@ -135,7 +136,7 @@ function buildAuth(env: Bindings, baseURL: string): Auth {
       twoFactor({ issuer: "Zenith" }),
     ],
     advanced: {
-      useSecureCookies: env.ENVIRONMENT === "production",
+      useSecureCookies: isProduction,
     },
   });
 

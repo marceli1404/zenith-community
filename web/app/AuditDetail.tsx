@@ -6,6 +6,7 @@ import { LinkButton, ScoreRing, cx } from "../components/ui";
 import { Chip, Notice, PageHeader, Panel } from "./ConsoleKit";
 import { ConsolePageFrame } from "../components/LoadingFrames";
 import { scoreColor, scoreLabel } from "../lib/format";
+import { homepageFailureDiagnosticForFinding } from "../../src/shared/reliability";
 import "./audit-surfaces.css";
 
 interface GroupedFinding {
@@ -17,6 +18,7 @@ interface GroupedFinding {
   recommendation: string;
   affectedUrls: string[];
   occurrences: number;
+  evidenceSamples?: Array<{ pageUrl: string; evidence: Record<string, unknown> }>;
   status?: "new" | "ongoing" | "regressed";
 }
 interface Comparison {
@@ -25,8 +27,8 @@ interface Comparison {
   counts: { new: number; ongoing: number; resolved: number; regressed: number };
 }
 interface AuditResponse {
-  job: { id: string; status: string; error_code: string | null; site_id?: string | null };
-  result: { id: string; scores: { overall: number; categories: Record<string, number> }; pageCount: number; brokenLinkCount: number } | null;
+  job: { id: string; status: string; error_code: string | null; site_id?: string | null; target_origin?: string | null };
+  result: { id: string; scores: { overall: number | null; categories: Record<string, number | null>; reliabilityDeduction: number | null }; pageCount: number; brokenLinkCount: number } | null;
   comparison?: Comparison | null;
   findings?: GroupedFinding[];
 }
@@ -90,12 +92,11 @@ export default function AuditDetail() {
   if (!data.result) {
     return (
       <div className="cn-page">
-        <PageHeader back={back} title={data.job.status === "completed" ? "Audit completed" : "Audit in progress"} description="Results appear here as soon as scoring finishes. You can leave this page." />
+        <PageHeader back={back} title={data.job.status === "completed" ? "Audit completed" : "Audit in progress"} description="Results appear here when scoring finishes. You can leave this page and return later." />
         {errorNotice}
         <Panel className="audit-progress" aria-live="polite">
           {!error && <div className="audit-sweep" aria-hidden="true" />}
           <strong key={data.job.status} className="audit-stage">{({ queued: "Waiting in the audit queue", crawling: "Reading website pages", browser_analysis: "Analysing pages in the browser", scoring: "Calculating scores" } as Record<string, string>)[data.job.status] ?? data.job.status.replace(/_/g, " ")}</strong>
-          <p>Most audits finish within a few minutes.</p>
         </Panel>
       </div>
     );
@@ -110,6 +111,9 @@ export default function AuditDetail() {
   const allFindings = data.findings ?? [];
   const criticalCount = allFindings.filter((f) => f.severity === "critical").length;
   const highCount = allFindings.filter((f) => f.severity === "high").length;
+  const homepageUnavailable = allFindings.some((finding) => finding.ruleId === "reliability.homepage-unavailable");
+  const overallScore = data.result.scores.overall;
+  const overallLabel = overallScore === null ? "Not assessed" : homepageUnavailable ? "Homepage could not be assessed" : scoreLabel(overallScore);
   const present = (list: string[], key: "severity" | "category") => list.filter((o) => allFindings.some((f) => f[key] === o));
 
   return (
@@ -117,20 +121,29 @@ export default function AuditDetail() {
       <PageHeader
         back={back}
         title="Audit report"
-        description={`${data.result.pageCount} ${data.result.pageCount === 1 ? "page" : "pages"} checked, ${data.result.brokenLinkCount} broken ${data.result.brokenLinkCount === 1 ? "link" : "links"}.`}
+        description={`${data.result.pageCount} ${data.result.pageCount === 1 ? "page" : "pages"} scanned, ${data.result.brokenLinkCount} broken ${data.result.brokenLinkCount === 1 ? "link" : "links"}.`}
         actions={<ReportExport data={data} />}
       />
       {errorNotice}
 
       <Panel aria-label="Audit summary" className="audit-summary">
         <div className="audit-summary__score">
-          <ScoreRing score={data.result.scores.overall} size={132} />
+          <ScoreRing score={overallScore} size={132} />
           <div>
             <span className="audit-summary__label">Zenith score</span>
-            <strong style={{ color: scoreColor(data.result.scores.overall) }}>
-              {scoreLabel(data.result.scores.overall)}
-              {data.comparison && <Delta value={data.comparison.deltas.overall} />}
+            <strong style={{ color: overallScore === null ? "var(--color-muted)" : scoreColor(overallScore) }}>
+              {overallLabel}
+              {overallScore !== null && data.comparison && <Delta value={data.comparison.deltas.overall} />}
             </strong>
+            {overallScore === null ? (
+              <p>No score was calculated because the audit could not complete all required page checks.</p>
+            ) : homepageUnavailable ? (
+              <p>Homepage could not be assessed; overall score set to 0. Category scores were not assessed.</p>
+            ) : data.result.scores.reliabilityDeduction === null ? (
+              <p>Reliability impact was not recorded for this saved audit.</p>
+            ) : data.result.scores.reliabilityDeduction > 0 && (
+              <p>Reliability findings deducted {data.result.scores.reliabilityDeduction} points from the overall score.</p>
+            )}
             {data.comparison && (
               <p>{data.comparison.counts.new} new, {data.comparison.counts.ongoing} ongoing, {data.comparison.counts.resolved} resolved{data.comparison.counts.regressed > 0 ? `, ${data.comparison.counts.regressed} regressed` : ""} since the previous audit.</p>
             )}
@@ -145,7 +158,7 @@ export default function AuditDetail() {
               <div key={cat} className="audit-dimension">
                 <dt>{CATEGORY_LABEL[cat]}</dt>
                 <dd>
-                  <span style={{ color: v == null ? "var(--color-muted)" : scoreColor(v) }}>{v ?? "-"}</span>
+                  <span style={{ color: v == null ? "var(--color-muted)" : scoreColor(v) }}>{v == null ? "Unassessed" : v}</span>
                   {d !== undefined && d !== 0 && <Delta value={d} small />}
                 </dd>
                 <span className="audit-dimension__track" aria-hidden="true"><i style={{ transform: `scaleX(${(v ?? 0) / 100})`, background: v == null ? undefined : scoreColor(v) }} /></span>
@@ -159,7 +172,7 @@ export default function AuditDetail() {
         <Notice tone={criticalCount > 0 ? "bad" : "warn"}>
           <span className="audit-attention"><AlertTriangle size={17} />
             <span><strong>{criticalCount > 0 ? "Action required." : "Attention needed."}</strong>{" "}
-            The overall score is {scoreLabel(data.result.scores.overall).toLowerCase()}, but{" "}
+            The overall score is {overallLabel.toLowerCase()}, but{" "}
             {[criticalCount > 0 ? `${criticalCount} critical` : null, highCount > 0 ? `${highCount} high-severity` : null].filter(Boolean).join(" and ")}{" "}
             {criticalCount + highCount === 1 ? "issue needs" : "issues need"} attention.</span>
           </span>
@@ -200,6 +213,7 @@ function reportJson(data: AuditResponse): string {
     {
       generatedBy: "Zenith",
       auditId: data.job.id,
+      website: data.job.target_origin ?? null,
       generatedAt: new Date().toISOString(),
       scores: data.result?.scores ?? null,
       pageCount: data.result?.pageCount ?? null,
@@ -209,6 +223,7 @@ function reportJson(data: AuditResponse): string {
         ruleId: f.ruleId, category: f.category, severity: f.severity, title: f.title,
         description: f.description, recommendation: f.recommendation,
         affectedUrls: f.affectedUrls, occurrences: f.occurrences, status: f.status ?? null,
+        diagnosis: homepageFailureDiagnosticForFinding(f),
       })),
       disclaimer: "Passive checks only, not a penetration test or compliance certification.",
     },
@@ -221,17 +236,22 @@ function reportMarkdown(data: AuditResponse): string {
   const s = data.result!.scores;
   const L: string[] = [];
   L.push("# Zenith audit report", "");
-  L.push(`- **Overall score:** ${s.overall} (${scoreLabel(s.overall)})`);
+  if (data.job.target_origin) L.push(`- **Website:** ${data.job.target_origin}`);
+  const homepageUnavailable = (data.findings ?? []).some((finding) => finding.ruleId === "reliability.homepage-unavailable");
+  const overallLabel = s.overall === null ? "Not assessed" : homepageUnavailable ? "Homepage could not be assessed" : scoreLabel(s.overall);
+  L.push(`- **Overall score:** ${s.overall === null ? overallLabel : `${s.overall} (${overallLabel})`}`);
   L.push(`- **Pages scanned:** ${data.result!.pageCount} · **Broken links:** ${data.result!.brokenLinkCount}`);
   L.push(`- **Generated:** ${new Date().toLocaleString()}`, "");
   L.push("## Category scores", "");
-  for (const [k, v] of Object.entries(s.categories)) L.push(`- **${k}:** ${v ?? "-"}`);
+  for (const [k, v] of Object.entries(s.categories)) L.push(`- **${k}:** ${v ?? "Unassessed"}`);
   const findings = data.findings ?? [];
   L.push("", `## Findings (${findings.length})`);
   for (const f of findings) {
+    const diagnosis = homepageFailureDiagnosticForFinding(f);
     L.push("", `### [${f.severity.toUpperCase()}] ${f.title}`);
     L.push(`- **Category:** ${f.category}${f.occurrences > 1 ? ` · ${f.occurrences} pages` : ""}`);
     if (f.affectedUrls?.length) L.push(`- **Affected URLs:** ${f.affectedUrls.slice(0, 10).join(", ")}`);
+    if (diagnosis) L.push(`- **Observed:** ${diagnosis.summary} (${diagnosis.code})`);
     L.push("", f.description);
     if (f.recommendation) L.push("", `**Recommended fix:** ${f.recommendation}`);
   }
@@ -303,6 +323,7 @@ const SEVERITY_TONE: Record<string, "bad" | "warn" | "accent" | "muted"> = { cri
 
 export function FindingCard({ f }: { f: GroupedFinding }) {
   const [open, setOpen] = useState(false);
+  const diagnosis = homepageFailureDiagnosticForFinding(f);
 
   return (
     <article className="finding-card">
@@ -316,16 +337,20 @@ export function FindingCard({ f }: { f: GroupedFinding }) {
         </div>
         <h3>{f.title}</h3>
         <p>{f.description}</p>
+        {diagnosis && <p><strong>Observed:</strong> {diagnosis.summary} (<code>{diagnosis.code}</code>)</p>}
         <p className="finding-card__fix"><strong>What to do: </strong>{f.recommendation}</p>
         {f.affectedUrls.length > 0 && (
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="finding-card__pages">
-            <ChevronDown size={15} /> {open ? "Hide" : "Show"} affected pages ({f.affectedUrls.length})
+            <ChevronDown size={15} /> {open ? "Hide" : "Show"} affected URL samples ({f.affectedUrls.length})
           </button>
         )}
         {open && (
-          <ul className="finding-detail">
-            {f.affectedUrls.slice(0, 20).map((u) => <li key={u}>{u}</li>)}
-          </ul>
+          <>
+            <p className="finding-detail__privacy">Displayed URLs omit query strings and likely token-like path segments.</p>
+            <ul className="finding-detail">
+              {f.affectedUrls.slice(0, 20).map((u) => <li key={u}>{u}</li>)}
+            </ul>
+          </>
         )}
       </div>
     </article>

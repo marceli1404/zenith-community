@@ -9,10 +9,10 @@ import { PanelFrame } from "../components/LoadingFrames";
 
 interface Detail {
   monitor: { enabled: number; last_status_code: number | null; last_response_ms: number | null; last_ok: number | null; last_checked_at: number | null } | null;
-  uptime: { d1: number; d7: number; d30: number };
+  uptime: { d1: number | null; d7: number | null; d30: number | null };
   series: Array<{ checked_at: number; ok: number; response_ms: number | null }>;
   incidents: Array<{ id: string; started_at: number; resolved_at: number | null; reason: string | null }>;
-  recentAudits: Array<{ id: string; status: string; queued_at: number; overall_score: number | null }>;
+  recentAudits: Array<{ id: string; status: string; queued_at: number; overall_score: number | null; homepage_unavailable?: number }>;
 }
 
 type Tab = "uptime" | "audits" | "incidents";
@@ -48,7 +48,7 @@ export default function SiteMonitor({ siteId }: { siteId: string }) {
   const activeIncident = data.incidents.some((incident) => !incident.resolved_at);
   const monitorStatus = activeIncident ? "Active incident" : !data.monitor?.enabled ? "Monitoring off" : !checkedAt ? "Not checked yet" : data.monitor.last_ok === 1 ? "Operational" : data.monitor.last_ok === 0 ? "Check failed" : "Unknown";
   const tone = activeIncident || data.monitor?.last_ok === 0 ? "bad" : data.monitor?.last_ok === 1 ? "good" : "muted";
-  const uptimeValue = (days: number, value: number) => (checkedAt && checkedAt >= Date.now() - days * 86_400_000 ? `${value}%` : "No checks");
+  const uptimeValue = (days: number, value: number | null) => (value !== null && checkedAt && checkedAt >= Date.now() - days * 86_400_000 ? `${value}%` : "No checks in this period");
 
   return (
     <div className="site-monitor">
@@ -69,7 +69,7 @@ export default function SiteMonitor({ siteId }: { siteId: string }) {
         {tab === "uptime" && (
           <Panel title="Response time" description="Recent checks. Breaks in the line are failed checks.">
             {data.series.length === 0 ? (
-              <div className="site-empty"><EmptyIllustration kind="audits" /><p>No checks recorded yet. Monitoring runs after verification.</p></div>
+              <div className="site-empty"><EmptyIllustration kind="audits" /><p>No monitoring checks have been recorded.</p></div>
             ) : (
               <ResponseTrace samples={data.series} />
             )}
@@ -82,7 +82,7 @@ export default function SiteMonitor({ siteId }: { siteId: string }) {
               {data.recentAudits.length === 0 ? <p className="cn-empty-row">No audits yet. Run one to set this site's baseline.</p> : data.recentAudits.map((a) => (
                 <Link key={a.id} to={`/app/audits/${a.id}`} className="cn-table__row">
                   <span className="cn-primary-cell"><span className="cn-monogram" aria-hidden="true"><ScanLine size={18} /></span><span><strong>{new Date(a.queued_at).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</strong><small>{relativeTime(a.queued_at)}</small></span></span>
-                  <span>{a.overall_score != null ? <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span> : <span className="cn-score cn-score--none">No score</span>}</span>
+                  <span>{a.homepage_unavailable === 1 ? <span className="cn-score cn-score--none" aria-label="Homepage could not be assessed, score 0">0 · Homepage could not be assessed</span> : a.overall_score != null ? <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span> : <span className="cn-score cn-score--none">{a.status === "completed" ? "Not assessed" : "No score"}</span>}</span>
                   <span><Chip tone={a.status === "completed" ? "good" : a.status === "failed" ? "bad" : "accent"}>{a.status.replace(/_/g, " ")}</Chip></span>
                   <ChevronRight size={18} className="cn-row-arrow" />
                 </Link>

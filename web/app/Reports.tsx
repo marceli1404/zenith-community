@@ -16,6 +16,7 @@ interface AuditRow {
   completed_at: number | null;
   result_id: string | null;
   overall_score: number | null;
+  homepage_unavailable: number;
   site_name: string | null;
   origin: string | null;
 }
@@ -49,7 +50,9 @@ export default function Reports() {
                   <span className="cn-monogram" aria-hidden="true"><FileText size={18} /></span>
                   <span><strong>{a.site_name || a.origin || "Audit"}</strong><small>Completed {relativeTime(a.completed_at ?? a.queued_at)}</small></span>
                 </Link>
-                <span>{a.overall_score != null && <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span>}</span>
+                <span>
+                  {a.homepage_unavailable === 1 ? <span className="cn-score cn-score--none" aria-label="Homepage could not be assessed, score 0">0 · Homepage could not be assessed</span> : a.overall_score != null ? <span className="cn-score" style={{ color: scoreColor(a.overall_score) }}>{a.overall_score}</span> : <span className="cn-score cn-score--none">Not assessed</span>}
+                </span>
                 <span className="report-actions">{a.result_id && <PdfButton resultId={a.result_id} />}</span>
               </div>
             ))}

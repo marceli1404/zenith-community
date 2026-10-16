@@ -6,10 +6,10 @@ import { api } from "../lib/api";
 import { relativeTime, scoreColor } from "../lib/format";
 
 interface OverviewData {
-  health: { score: number; auditId: string; at: number } | null;
+  health: { score: number | null; auditId: string; at: number; homepageUnavailable?: boolean } | null;
   uptime30d: number | null;
   highPriorityFindings: number;
-  recentAudits: Array<{ id: string; status: string; score: number | null; at: number }>;
+  recentAudits: Array<{ id: string; status: string; score: number | null; at: number; homepageUnavailable?: boolean }>;
 }
 
 /** A compact overview of the site's latest audit and monitoring data. */
@@ -40,8 +40,8 @@ export default function SiteOverview({ siteId }: { siteId: string }) {
   }
 
   const tiles = [
-    { label: "Latest audit", value: data.health ? `${data.health.score}/100` : "Not audited yet", color: data.health ? scoreColor(data.health.score) : undefined },
-    { label: "Uptime, 30 days", value: data.uptime30d != null ? `${data.uptime30d}%` : "No checks yet", color: undefined },
+    { label: "Latest audit", value: data.health?.homepageUnavailable ? "Homepage could not be assessed · 0/100" : data.health?.score != null ? `${data.health.score}/100` : data.health ? "Not assessed" : "Not audited yet", color: data.health?.score != null && !data.health.homepageUnavailable ? scoreColor(data.health.score) : undefined },
+    { label: "Uptime, 30 days", value: data.uptime30d != null ? `${data.uptime30d}%` : "No checks in this period", color: undefined },
     { label: "High-priority findings", value: String(data.highPriorityFindings), color: undefined },
   ];
 
@@ -64,7 +64,7 @@ export default function SiteOverview({ siteId }: { siteId: string }) {
             {data.recentAudits.map((audit) => (
               <li key={audit.id}>
                 <Link to={`/app/audits/${audit.id}`}>
-                  {audit.status.replace(/_/g, " ")}{audit.score != null ? ` · ${audit.score}/100` : ""}
+                  {audit.status.replace(/_/g, " ")}{audit.homepageUnavailable ? " · Homepage could not be assessed · 0/100" : audit.score != null ? ` · ${audit.score}/100` : audit.status === "completed" ? " · Not assessed" : ""}
                 </Link>
                 <time>{relativeTime(audit.at)}</time>
               </li>

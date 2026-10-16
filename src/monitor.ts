@@ -1,5 +1,5 @@
 /**
- * Uptime monitoring (§19–§20). The cron trigger runs every minute, finds due
+ * Uptime monitoring. The cron trigger runs every minute, finds due
  * monitors, enqueues one job each, and immediately advances next_check_at so an
  * overlapping tick can't double-enqueue. Queue workers perform the actual HTTP
  * check (never a browser), record the result, and drive the incident state
@@ -76,8 +76,8 @@ export async function scheduleDueMonitors(env: Bindings): Promise<void> {
     return kept;
   }
 
+  const claims: Array<{ monitor: DueMonitor; nextCheckAt: number; enqueue: boolean }> = [];
   const updates: D1PreparedStatement[] = [];
-  const toEnqueue: DueMonitor[] = [];
 
   for (const m of due) {
     const access = await accessFor(m.user_id);
@@ -85,20 +85,42 @@ export async function scheduleDueMonitors(env: Bindings): Promise<void> {
     const effectiveInterval = getUptimeInterval(access.plan);
     // Advance next_check_at for every due monitor (even paused ones) so a
     // subsequent tick doesn't keep re-selecting them every minute.
-    updates.push(env.DB.prepare(`UPDATE monitors SET next_check_at = ? WHERE id = ?`).bind(nowMs + effectiveInterval * 1000, m.id));
-
     const kept = await keptSitesFor(m.user_id, access.plan);
-    if (kept.has(m.site_id)) toEnqueue.push(m);
+    const nextCheckAt = nowMs + effectiveInterval * 1000;
+    updates.push(
+      env.DB.prepare(
+        `UPDATE monitors SET next_check_at = ? WHERE id = ? AND enabled = 1 AND next_check_at <= ?`,
+      ).bind(nextCheckAt, m.id, nowMs),
+    );
+    claims.push({ monitor: m, nextCheckAt, enqueue: kept.has(m.site_id) });
   }
 
-  await env.DB.batch(updates);
+  const claimResults = await env.DB.batch(updates);
+  const toEnqueue = claims.flatMap(({ monitor, nextCheckAt, enqueue }, index) => {
+    if (!enqueue || (claimResults[index]?.meta?.changes ?? 0) !== 1) return [];
+    return [{ ...monitor, nextCheckAt, checkId: newId("chk") }];
+  });
 
   // Enqueue the checks.
   await Promise.all(
     toEnqueue.map((m) =>
-      env.MONITOR_QUEUE.send({ type: "check", monitorId: m.id, siteId: m.site_id }).catch((err) =>
-        console.error("Failed to enqueue monitor check", m.id, err),
-      ),
+      env.MONITOR_QUEUE.send({ type: "check", monitorId: m.id, siteId: m.site_id, checkId: m.checkId }).catch(async (err) => {
+        console.error("Failed to enqueue monitor check", m.id, err);
+        // The due time was advanced before enqueue to prevent overlapping cron
+        // ticks from duplicating work. If enqueue failed, make it eligible on
+        // the next tick rather than silently skipping an entire check interval.
+        try {
+          await run(
+            env.DB,
+            `UPDATE monitors SET next_check_at = MIN(next_check_at, ?) WHERE id = ? AND next_check_at = ?`,
+            nowMs,
+            m.id,
+            m.nextCheckAt,
+          );
+        } catch (resetError) {
+          console.error("Failed to restore monitor check schedule", m.id, resetError);
+        }
+      }),
     ),
   );
 }
@@ -115,10 +137,18 @@ interface MonitorDbRow {
   interval_seconds: number;
   consecutive_failures: number;
   consecutive_successes: number;
+  last_checked_at: number | null;
 }
 
 /** Queue worker: perform one uptime check and update state. */
 export async function processMonitorCheck(env: Bindings, job: MonitorJob): Promise<void> {
+  const checkId = job.checkId ?? newId("chk");
+  // Queue delivery is at-least-once. A row is inserted only in the same atomic
+  // D1 batch as the counter/incident updates, so its presence means the whole
+  // check already committed and this redelivery can safely return.
+  const savedCheck = await first<{ id: string }>(env.DB, `SELECT id FROM uptime_checks WHERE id = ?`, checkId);
+  if (savedCheck) return;
+
   const site = await first<{ id: string; user_id: string; normalized_origin: string; name: string }>(
     env.DB,
     `SELECT id, user_id, normalized_origin, name FROM sites WHERE id = ?`,
@@ -126,7 +156,7 @@ export async function processMonitorCheck(env: Bindings, job: MonitorJob): Promi
   );
   const monRow = await first<MonitorDbRow>(
     env.DB,
-    `SELECT id, site_id, interval_seconds, consecutive_failures, consecutive_successes FROM monitors WHERE id = ?`,
+    `SELECT id, site_id, interval_seconds, consecutive_failures, consecutive_successes, last_checked_at FROM monitors WHERE id = ?`,
     job.monitorId,
   );
   // Site or monitor may have been deleted between enqueue and processing.
@@ -146,24 +176,10 @@ export async function processMonitorCheck(env: Bindings, job: MonitorJob): Promi
   });
 
   const checkedAt = now();
-  const ok = res.ok && res.status < 400;
+  const ok = res.ok && res.status >= 200 && res.status < 300;
   const statusCode = res.ok ? res.status : null;
   const responseMs = res.ok ? res.responseMs : null;
   const errorCode = res.ok ? null : res.errorCode;
-
-  // Record the raw check.
-  await run(
-    env.DB,
-    `INSERT INTO uptime_checks (id, site_id, checked_at, ok, status_code, response_ms, error_code)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    newId("chk"),
-    site.id,
-    checkedAt,
-    ok ? 1 : 0,
-    statusCode,
-    responseMs,
-    errorCode,
-  );
 
   // Update monitor last-* and counters via the pure state machine.
   const counters: MonitorCounters = {
@@ -173,46 +189,64 @@ export async function processMonitorCheck(env: Bindings, job: MonitorJob): Promi
   };
   const { counters: next, action } = applyCheck(counters, { ok });
 
-  await run(
-    env.DB,
-    `UPDATE monitors SET consecutive_failures = ?, consecutive_successes = ?,
-       last_checked_at = ?, last_status_code = ?, last_response_ms = ?, last_ok = ?, updated_at = ?
-     WHERE id = ?`,
-    next.consecutiveFailures,
-    next.consecutiveSuccesses,
-    checkedAt,
-    statusCode,
-    responseMs,
-    ok ? 1 : 0,
-    checkedAt,
-    monRow.id,
-  );
-
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `UPDATE monitors SET consecutive_failures = ?, consecutive_successes = ?,
+         last_checked_at = ?, last_status_code = ?, last_response_ms = ?, last_ok = ?, updated_at = ?, last_check_id = ?
+       WHERE id = ? AND consecutive_failures = ? AND consecutive_successes = ? AND last_checked_at IS ?`,
+    ).bind(
+      next.consecutiveFailures,
+      next.consecutiveSuccesses,
+      checkedAt,
+      statusCode,
+      responseMs,
+      ok ? 1 : 0,
+      checkedAt,
+      checkId,
+      monRow.id,
+      monRow.consecutive_failures,
+      monRow.consecutive_successes,
+      monRow.last_checked_at,
+    ),
+    env.DB.prepare(
+      `INSERT INTO uptime_checks (id, site_id, checked_at, ok, status_code, response_ms, error_code)
+       SELECT ?, ?, ?, ?, ?, ?, ? FROM monitors WHERE id = ? AND last_check_id = ?`,
+    ).bind(checkId, site.id, checkedAt, ok ? 1 : 0, statusCode, responseMs, errorCode, monRow.id, checkId),
+  ];
+  let newIncidentId: string | null = null;
   if (action.type === "open_incident") {
-    const incidentId = newId("inc");
-    await run(
-      env.DB,
-      `INSERT INTO incidents (id, site_id, started_at, reason, initial_status_code, last_status_code, notification_sent_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      incidentId,
-      site.id,
-      checkedAt,
-      errorCode ?? `HTTP ${statusCode ?? "error"}`,
-      statusCode,
-      statusCode,
-      checkedAt,
+    newIncidentId = newId("inc");
+    statements.push(
+      env.DB.prepare(
+        `INSERT INTO incidents (id, site_id, started_at, reason, initial_status_code, last_status_code, notification_sent_at)
+         SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM uptime_checks WHERE id = ?)`,
+      ).bind(newIncidentId, site.id, checkedAt, errorCode ?? `HTTP ${statusCode ?? "error"}`, statusCode, statusCode, checkedAt, checkId),
     );
-    await notify(env, site.user_id, "site_down", { siteName: site.name, url: site.normalized_origin, statusCode }, `down:${incidentId}`);
   } else if (action.type === "resolve_incident" && openIncident) {
-    const downtimeMinutes = Math.max(1, Math.round((checkedAt - openIncident.started_at) / 60000));
-    await run(
-      env.DB,
-      `UPDATE incidents SET resolved_at = ?, last_status_code = ?, recovery_notification_sent_at = ? WHERE id = ?`,
-      checkedAt,
-      statusCode,
-      checkedAt,
-      openIncident.id,
+    statements.push(
+      env.DB.prepare(
+        `UPDATE incidents SET resolved_at = ?, last_status_code = ?, recovery_notification_sent_at = ?
+         WHERE id = ? AND resolved_at IS NULL AND EXISTS (SELECT 1 FROM uptime_checks WHERE id = ?)`,
+      ).bind(checkedAt, statusCode, checkedAt, openIncident.id, checkId),
     );
+  }
+
+  // D1 batches are atomic and sequential. A unique check id plus optimistic
+  // state matching prevents redeliveries and overlapping checks from applying
+  // a counter transition more than once.
+  const results = await env.DB.batch(statements);
+  if ((results[0]?.meta?.changes ?? 0) === 0) {
+    const concurrentCheck = await first<{ id: string }>(env.DB, `SELECT id FROM uptime_checks WHERE id = ?`, checkId);
+    if (concurrentCheck) return;
+    const currentMonitor = await first<{ id: string }>(env.DB, `SELECT id FROM monitors WHERE id = ?`, monRow.id);
+    if (currentMonitor) throw new Error("monitor_state_conflict");
+    return;
+  }
+
+  if (action.type === "open_incident" && newIncidentId && (results[2]?.meta?.changes ?? 0) === 1) {
+    await notify(env, site.user_id, "site_down", { siteName: site.name, url: site.normalized_origin, statusCode }, `down:${newIncidentId}`);
+  } else if (action.type === "resolve_incident" && openIncident && (results[2]?.meta?.changes ?? 0) === 1) {
+    const downtimeMinutes = Math.max(1, Math.round((checkedAt - openIncident.started_at) / 60000));
     await notify(env, site.user_id, "site_recovered", { siteName: site.name, url: site.normalized_origin, downtimeMinutes }, `up:${openIncident.id}`);
   }
 }

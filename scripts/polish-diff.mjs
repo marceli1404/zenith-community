@@ -1,9 +1,9 @@
 /**
  * Mechanical check of the immutable login contract.
  *
- *   node scripts/polish-diff.mjs
+ *   npm run login-review:diff
  *
- * Compares artifacts/precision-polish/before/login/*.json with the matching
+ * Compares artifacts/login-review/before/login/*.json with the matching
  * after/ record and fails loudly if any control's tag, visible text, type,
  * order or resting rectangle changed. Rectangles are compared at rest (t15 and
  * after resize), because entry animation resolves to translate zero.
@@ -14,8 +14,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BEFORE = join(ROOT, "artifacts", "precision-polish", "before", "login");
-const AFTER = join(ROOT, "artifacts", "precision-polish", "after", "login");
+const BEFORE = join(ROOT, "artifacts", "login-review", "before", "login");
+const AFTER = join(ROOT, "artifacts", "login-review", "after", "login");
 const TOLERANCE = 0.5; // CSS px
 
 const near = (a, b) => Math.abs(a - b) <= TOLERANCE;

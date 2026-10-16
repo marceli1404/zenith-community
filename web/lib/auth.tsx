@@ -6,6 +6,12 @@ import { hasCapability, type Capability, type Plan } from "@shared/entitlements"
 
 export type SocialProvider = "google" | "github";
 
+declare global {
+  interface Window {
+    __ZENITH_PRERENDER__?: boolean;
+  }
+}
+
 /** Better Auth's inferred client type isn't portable once the emailOTP plugin is
  *  added (it references better-auth's bundled zod internals — TS2742). We only
  *  call a small, stable slice of the API, so we pin an explicit facade type. The
@@ -44,6 +50,9 @@ export const authClient = createAuthClient({
 export interface AuthConfig {
   authProviders: Record<SocialProvider, boolean>;
   emailEnabled: boolean;
+  environment: "development" | "preview" | "production";
+  isProduction: boolean;
+  turnstileSiteKey: string;
 }
 
 let authConfigCache: AuthConfig | null = null;
@@ -55,9 +64,12 @@ export function useAuthConfig(): { config: AuthConfig | null; loaded: boolean } 
   const [loaded, setLoaded] = useState(authConfigCache !== null);
   useEffect(() => {
     if (authConfigCache) return;
+    // The prerenderer captures the first, config-neutral render. The real page
+    // loads this after hydration so its static markup matches the browser's first render.
+    if (window.__ZENITH_PRERENDER__) return;
     let alive = true;
     api
-      .get<AuthConfig & { authProviders?: Record<string, boolean> }>("/api/config")
+      .get<Partial<AuthConfig> & { authProviders?: Record<string, boolean> }>("/api/config")
       .then((c) => {
         const shaped: AuthConfig = {
           authProviders: {
@@ -65,6 +77,9 @@ export function useAuthConfig(): { config: AuthConfig | null; loaded: boolean } 
             github: !!c.authProviders?.github,
           },
           emailEnabled: !!c.emailEnabled,
+          environment: c.environment === "production" || c.environment === "preview" ? c.environment : "development",
+          isProduction: c.isProduction === true,
+          turnstileSiteKey: typeof c.turnstileSiteKey === "string" ? c.turnstileSiteKey : "",
         };
         authConfigCache = shaped;
         if (alive) {

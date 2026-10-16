@@ -15,9 +15,9 @@
  *    the surface text.
  *  - Deny by default for anything reserved, private, loopback, link-local,
  *    unique-local, multicast, or otherwise non-public.
- *  - This function handles the LITERAL target. DNS-rebinding (a public name that
- *    resolves to a private IP) is a runtime concern: the fetch wrapper must
- *    re-validate the resolved address and EVERY redirect hop. See src/lib/http.ts.
+ *  - This function validates literal IPs and hostnames. Redirect destinations
+ *    are revalidated by src/lib/http.ts, but Workers fetch does not expose the
+ *    connected DNS address, so DNS rebinding remains a documented residual risk.
  */
 
 export interface ValidTarget {
@@ -51,7 +51,8 @@ export type SsrfRejectCode =
   | "multicast"
   | "unspecified"
   | "localhost_like"
-  | "ipv6_not_public";
+  | "ipv6_not_public"
+  | "ip_literal_not_supported";
 
 /** Only standard website ports are permitted. */
 const ALLOWED_PORTS = new Set<number>([80, 443]);
@@ -214,9 +215,8 @@ export function classifyIPv6(host: string): SsrfRejectCode | "public" | null {
   if (groups.every((g) => g === 0)) return "unspecified";
   if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return "loopback";
 
-  // IPv4-mapped (::ffff:0:0/96) and IPv4-compatible (::/96, deprecated):
-  // the WHATWG URL parser compresses "::ffff:192.168.1.1" to hex, so classify
-  // the embedded IPv4 from the last two hextets rather than relying on dotted form.
+  // IPv4-mapped (::ffff:0:0/96): the WHATWG URL parser compresses dotted mapped
+  // addresses to hex, so classify the embedded IPv4 from the last two hextets.
   const isMapped =
     groups[0] === 0 &&
     groups[1] === 0 &&
@@ -224,13 +224,14 @@ export function classifyIPv6(host: string): SsrfRejectCode | "public" | null {
     groups[3] === 0 &&
     groups[4] === 0 &&
     groups[5] === 0xffff;
-  const isCompat = groups.slice(0, 6).every((g) => g === 0);
-  if (isMapped || isCompat) {
+  if (isMapped) {
     const embedded = ((((groups[6]! << 16) >>> 0) | groups[7]!) >>> 0);
     const code = classifyIPv4(embedded);
     if (code) return code;
     return "public";
   }
+  // IPv4-compatible IPv6 (::/96) is deprecated and is not global unicast.
+  if (groups.slice(0, 6).every((g) => g === 0)) return "ipv6_not_public";
 
   // fe80::/10 link-local
   if ((first & 0xffc0) === 0xfe80) return "link_local";
@@ -238,8 +239,19 @@ export function classifyIPv6(host: string): SsrfRejectCode | "public" | null {
   if ((first & 0xfe00) === 0xfc00) return "unique_local";
   // ff00::/8 multicast
   if ((first & 0xff00) === 0xff00) return "multicast";
-  // ::ffff:0:0/96 IPv4-mapped that wasn't caught above as private -> treat host
-  // as an IPv4; if we reached here the embedded v4 was public, allow.
+
+  // Only global-unicast addresses (2000::/3) are website targets. This excludes
+  // NAT64, discard-only, SRv6 and other special-purpose ranges outside that block.
+  if ((first & 0xe000) !== 0x2000) return "ipv6_not_public";
+
+  // Exclude special-purpose ranges that sit inside the global-unicast block.
+  // The 2001::/23 registry block is reserved for protocol assignments; its
+  // specific globally reachable anycast exceptions are not ordinary site hosts.
+  if (groups[0] === 0x2001 && groups[1]! <= 0x01ff) return "reserved";
+  if (groups[0] === 0x2001 && groups[1] === 0x0db8) return "reserved"; // documentation
+  if (groups[0] === 0x2002) return "reserved"; // deprecated 6to4
+  if (groups[0] === 0x3fff && (groups[1]! & 0xf000) === 0) return "reserved"; // documentation
+
   return "public";
 }
 
@@ -331,7 +343,7 @@ export function validatePublicTarget(input: string): TargetValidation {
     const v6 = classifyIPv6(host);
     if (v6 === null) return reject("malformed_url", "The IPv6 address is invalid.");
     if (v6 !== "public") return reject(v6, "That IPv6 address is not public.");
-    return { ok: true, url: url.toString(), hostname: host, port };
+    return reject("ip_literal_not_supported", "Cloudflare Workers cannot fetch URLs that use an IP address directly. Enter the site's hostname instead.");
   }
 
   // IPv4 literal in any numeric representation.
@@ -339,12 +351,12 @@ export function validatePublicTarget(input: string): TargetValidation {
   if (v4 !== null) {
     const code = classifyIPv4(v4);
     if (code) return reject(code, "That IP address is not public.");
-    return { ok: true, url: url.toString(), hostname: host, port };
+    return reject("ip_literal_not_supported", "Cloudflare Workers cannot fetch URLs that use an IP address directly. Enter the site's hostname instead.");
   }
 
   // Otherwise a regular domain name. It must contain a dot and only DNS-legal
-  // characters; DNS-rebinding is handled at fetch time by re-validating the
-  // resolved address and every redirect hop.
+  // characters. Redirect targets are revalidated, but the runtime does not
+  // expose the resolved address needed to pin or independently verify DNS.
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(host)) {
     return reject("malformed_url", "The host is not a valid public domain name.");
   }

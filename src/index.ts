@@ -6,7 +6,7 @@ import { withConfig, securityHeaders, withAuth, sameOriginGuard, type AppEnv } f
 import { getAuth } from "./auth";
 import { scheduleDueMonitors, processMonitorCheck } from "./monitor";
 import { processAuditJob } from "./audit/pipeline";
-import { deliverEmail } from "./lib/email";
+import { deliverEmail, EmailDeliveryBusyError, flushEmailOutbox } from "./lib/email";
 import { downsampleAndPrune } from "./maintenance";
 import scan from "./routes/scan";
 import sites from "./routes/sites";
@@ -27,6 +27,8 @@ app.get("/api/config", (c) => {
   const cfg = c.get("config");
   return c.json({
     appName: cfg.appName,
+    environment: cfg.environment,
+    isProduction: cfg.isProduction,
     turnstileSiteKey: cfg.turnstileSiteKey,
     authProviders: cfg.authProviders,
     emailEnabled: cfg.emailEnabled,
@@ -83,26 +85,29 @@ export default {
   fetch: app.fetch,
   async scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduleDueMonitors(env));
+    ctx.waitUntil(flushEmailOutbox(env));
     if (new Date(event.scheduledTime).getUTCMinutes() === 3) ctx.waitUntil(downsampleAndPrune(env));
   },
   async queue(batch: MessageBatch, env: Bindings): Promise<void> {
     switch (batch.queue) {
-      case "zenith-monitor":
+      case "zenith-community-monitor":
         for (const message of batch.messages) {
           try { await processMonitorCheck(env, message.body as MonitorJob); message.ack(); }
           catch { message.retry(); }
         }
         break;
-      case "zenith-audit":
+      case "zenith-community-audit":
         for (const message of batch.messages) {
           try { await processAuditJob(env, message.body as AuditJob); message.ack(); }
           catch { message.retry(); }
         }
         break;
-      case "zenith-email":
+      case "zenith-community-email":
         for (const message of batch.messages) {
           try { await deliverEmail(env, message.body as EmailJob); message.ack(); }
-          catch { message.retry(); }
+          catch (error) {
+            message.retry(error instanceof EmailDeliveryBusyError ? { delaySeconds: 65 } : undefined);
+          }
         }
         break;
       default:
