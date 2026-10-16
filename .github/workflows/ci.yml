@@ -30,6 +30,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -39,11 +42,20 @@ jobs:
       - name: Unit tests
         run: npm run test
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python SQLite integration tests
+        run: python -m unittest discover -s test/backend
+
       - name: Install Chromium (prerender and E2E)
         run: npx playwright install --with-deps chromium
 
       - name: Build
-        run: npm run build
+        env:
+          PRODUCTION_APP_URL: https://community.example.invalid
+        run: npm run build:production
 
       - name: Apply local D1 migrations
         run: npx wrangler d1 migrations apply zenith-community-db --local --config dist/zenith_community_app/wrangler.json
