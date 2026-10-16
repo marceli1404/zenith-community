@@ -220,6 +220,45 @@ describe("crawler availability and linked-page failures", () => {
       severity: "critical",
       pageUrl: "https://example.com/broken",
     }));
+    expect(result.coverageIncomplete).toBe(false);
+  });
+
+  it("does not calculate an overall score when a linked page cannot be reached", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "" };
+      if (url.endsWith("/broken")) return { ok: false, errorCode: "dns_or_network", reason: "Network failure" };
+      return html(url);
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.brokenLinks).toBe(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      ruleId: "reliability.analysis-incomplete",
+      title: "Linked page could not be assessed",
+      pageUrl: "https://example.com/broken",
+    }));
+  });
+
+  it("does not calculate an overall score when a linked page returns partial content", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "" };
+      if (url.endsWith("/broken")) return { ...html(url), status: 206 };
+      return html(url);
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.brokenLinks).toBe(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      ruleId: "reliability.analysis-incomplete",
+      title: "Linked page returned partial content",
+      pageUrl: "https://example.com/broken",
+    }));
   });
 
   it.each([

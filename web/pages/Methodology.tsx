@@ -119,7 +119,7 @@ export default function Methodology() {
           </p>
           <p>
             If the rules disallow the homepage, no site pages are requested. A server or network error while fetching robots.txt prevents requests to that host. Audits are limited to 250 pages by default, with bounds
-          on link discovery, crawl depth, concurrency and response size. If those limits or a robots.txt block leave known same-origin pages unchecked, the audit is marked Not assessed rather than receiving a whole-site score. Redirects and browser resources must pass public-target and robots.txt
+            on link discovery, crawl depth, concurrency and response size. If those limits, a robots.txt block, an unreachable linked page or a partial response leave known same-origin pages unchecked, the audit is marked Not assessed rather than receiving a whole-site score. Redirects and browser resources must pass public-target and robots.txt
           checks and may use another public host. The crawler checks a redirect destination's robots.txt before following it.
           Requests use GET or HEAD, and known state-changing paths such as sign-out and admin pages
           are skipped. A target can still cause side effects through a GET route or page script. Browser rendering is used on the homepage;

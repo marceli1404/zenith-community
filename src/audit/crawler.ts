@@ -203,7 +203,16 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
         }
         if (depth === 0) homepageFailure = { kind: "request_failed", errorCode: res.errorCode };
         brokenLinks += 1;
-        if (depth > 0) findings.push(brokenPageFinding(url, res.errorCode));
+        if (depth > 0) {
+          findings.push(brokenPageFinding(url, res.errorCode));
+          markCoverageIncomplete(
+            url,
+            "The linked page could not be reached, so its content could not be checked and the audit did not calculate an overall score.",
+            { kind: "linked_page_unreachable", errorCode: res.errorCode },
+            "Linked page could not be assessed",
+            "Restore access to this page or rerun the audit after the network issue is resolved.",
+          );
+        }
         continue;
       }
       if (res.status >= 400) {
@@ -219,6 +228,13 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
         else {
           brokenLinks += 1;
           findings.push(brokenPageFinding(url, undefined, res.status));
+          markCoverageIncomplete(
+            url,
+            "The linked page returned partial content (HTTP 206), so the complete page could not be checked and the audit did not calculate an overall score.",
+            { kind: "partial_linked_page", status: 206 },
+            "Linked page returned partial content",
+            "Serve the complete page response, then run the audit again.",
+          );
         }
         continue;
       }
