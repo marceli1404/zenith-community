@@ -5,6 +5,8 @@ import { z } from "zod";
 import type { AppEnv } from "../middleware";
 import { requireAuth } from "../middleware";
 import { all, first, now, run } from "../db";
+import { parseEvidenceJson } from "@shared/reliability";
+import { sanitizeAuditEvidence, sanitizeAuditUrl } from "@shared/audit-privacy";
 
 const account = new Hono<AppEnv>();
 account.use("*", requireAuth);
@@ -86,15 +88,22 @@ account.get("/export", async (c) => {
   const userId = c.get("userId")!;
   const [profile, sites, checks, incidents, audits, results, findings, preferences] = await Promise.all([
     first(c.env.DB, `SELECT id, name, email, "createdAt" FROM "user" WHERE id = ?`, userId),
-    all(c.env.DB, `SELECT * FROM sites WHERE user_id = ?`, userId),
+    all<Record<string, unknown> & { url: string }>(c.env.DB, `SELECT * FROM sites WHERE user_id = ?`, userId),
     all(c.env.DB, `SELECT * FROM uptime_checks WHERE site_id IN (SELECT id FROM sites WHERE user_id = ?)`, userId),
     all(c.env.DB, `SELECT * FROM incidents WHERE site_id IN (SELECT id FROM sites WHERE user_id = ?)`, userId),
-    all(c.env.DB, `SELECT * FROM audit_jobs WHERE user_id = ?`, userId),
+    all<Record<string, unknown> & { target_origin?: string | null }>(c.env.DB, `SELECT * FROM audit_jobs WHERE user_id = ?`, userId),
     all(c.env.DB, `SELECT * FROM audit_results WHERE audit_job_id IN (SELECT id FROM audit_jobs WHERE user_id = ?)`, userId),
-    all(c.env.DB, `SELECT * FROM findings WHERE audit_result_id IN (SELECT id FROM audit_results WHERE audit_job_id IN (SELECT id FROM audit_jobs WHERE user_id = ?))`, userId),
+    all<Record<string, unknown> & { page_url: string | null; evidence_json: string }>(c.env.DB, `SELECT * FROM findings WHERE audit_result_id IN (SELECT id FROM audit_results WHERE audit_job_id IN (SELECT id FROM audit_jobs WHERE user_id = ?))`, userId),
     all(c.env.DB, `SELECT * FROM notification_preferences WHERE user_id = ?`, userId),
   ]);
-  return new Response(JSON.stringify({ exportedAt: now(), profile, sites, checks, incidents, audits, results, findings, preferences }, null, 2), {
+  const safeFindings = findings.map((row) => ({
+    ...row,
+    page_url: row.page_url ? sanitizeAuditUrl(row.page_url) : row.page_url,
+    evidence_json: JSON.stringify(sanitizeAuditEvidence(parseEvidenceJson(row.evidence_json), row.page_url ?? "")),
+  }));
+  const safeSites = sites.map((row) => ({ ...row, url: typeof row.url === "string" ? sanitizeAuditUrl(row.url) : row.url }));
+  const safeAudits = audits.map((row) => ({ ...row, target_origin: typeof row.target_origin === "string" ? sanitizeAuditUrl(row.target_origin) : row.target_origin }));
+  return new Response(JSON.stringify({ exportedAt: now(), profile, sites: safeSites, checks, incidents, audits: safeAudits, results, findings: safeFindings, preferences }, null, 2), {
     headers: { "content-type": "application/json", "content-disposition": 'attachment; filename="zenith-community-export.json"', "cache-control": "no-store" },
   });
 });

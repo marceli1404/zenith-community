@@ -11,6 +11,7 @@ import { all, first, now, run } from "../db";
 import { groupFindings, type Finding } from "@shared/findings";
 import { isOverallScoreAssessed, scoreFromSnapshot } from "@shared/scoring";
 import { parseEvidenceJson } from "@shared/reliability";
+import { sanitizeAuditEvidence, sanitizeAuditUrl } from "@shared/audit-privacy";
 import { generateReportHtml } from "../report/html";
 import { renderPdf } from "../report/pdf";
 
@@ -77,7 +78,8 @@ reports.post("/pdf/:auditResultId/generate", async (c) => {
   }>(c.env.DB, `SELECT * FROM findings WHERE audit_result_id = ?`, resultId);
   const findings: Finding[] = findingRows.map((r) => ({
     ruleId: r.rule_id, category: r.category, severity: r.severity, title: r.title,
-    description: r.description, pageUrl: r.page_url ?? "", evidence: parseEvidenceJson(r.evidence_json), recommendation: r.recommendation,
+    description: r.description, pageUrl: sanitizeAuditUrl(r.page_url ?? ""),
+    evidence: sanitizeAuditEvidence(parseEvidenceJson(r.evidence_json), r.page_url ?? ""), recommendation: r.recommendation,
   }));
   const grouped = groupFindings(findings);
   const scores = scoreFromSnapshot({
@@ -110,7 +112,10 @@ reports.post("/pdf/:auditResultId/generate", async (c) => {
   if (!pdf) return c.json({ error: "Report generation failed. Please try again." }, 502);
 
   const key = `users/${userId}/reports/${resultId}.pdf`;
-  await c.env.REPORTS_BUCKET.put(key, pdf, { httpMetadata: { contentType: "application/pdf" } });
+  await c.env.REPORTS_BUCKET.put(key, pdf, {
+    httpMetadata: { contentType: "application/pdf" },
+    customMetadata: { auditUrlRedactionVersion: "2" },
+  });
   await run(c.env.DB, `UPDATE audit_results SET report_key = ? WHERE id = ?`, key, resultId);
 
   return c.json({ ok: true, resultId });
@@ -124,6 +129,9 @@ reports.get("/pdf/:auditResultId", async (c) => {
   }
   const object = await c.env.REPORTS_BUCKET.get(asset.report_key);
   if (!object) return c.json({ error: "Not found." }, 404);
+  if (object.customMetadata?.auditUrlRedactionVersion !== "2") {
+    return c.json({ error: "This report needs regeneration before download.", code: "report_refresh_required" }, 409);
+  }
   return new Response(object.body, {
     headers: {
       "content-type": "application/pdf",

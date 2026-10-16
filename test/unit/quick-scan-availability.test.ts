@@ -214,6 +214,8 @@ describe("quick scan homepage availability", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
+    expect(result.url).toBe("https://example.com/unsubscribe");
+    expect(result.finalUrl).toBe("https://example.com/unsubscribe");
     expect(result.score.overall).toBeNull();
     expect(result.topFindings[0]).toMatchObject({
       ruleId: "reliability.unsafe-path",

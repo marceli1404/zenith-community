@@ -93,7 +93,10 @@ describe("PDF report generation route", () => {
     expect(bucket.put).toHaveBeenCalledWith(
       "users/user-1/reports/result-1.pdf",
       pdf,
-      { httpMetadata: { contentType: "application/pdf" } },
+      {
+        httpMetadata: { contentType: "application/pdf" },
+        customMetadata: { auditUrlRedactionVersion: "2" },
+      },
     );
     expect(mocks.run).toHaveBeenCalledWith(
       {},
@@ -123,6 +126,34 @@ describe("PDF report generation route", () => {
     expect(mocks.run).not.toHaveBeenCalled();
   });
 
+  it("redacts URLs from stored findings before generating a PDF", async () => {
+    mocks.all.mockResolvedValueOnce([{
+      page_url: "https://example.test/reset/secret-value?token=private",
+      category: "security",
+      severity: "high",
+      rule_id: "security.example",
+      title: "Example finding",
+      description: "Description",
+      evidence_json: JSON.stringify({ href: "https://example.test/invite/one-time-code?code=private" }),
+      recommendation: "Fix it",
+    }]);
+    mocks.renderPdf.mockResolvedValue(new Uint8Array([37, 80, 68, 70]));
+
+    const response = await makeApp().request(
+      "/api/reports/pdf/result-1/generate",
+      { method: "POST" },
+      makeEnv(bucket),
+    );
+
+    expect(response.status).toBe(200);
+    const report = mocks.generateReportHtml.mock.calls[0]?.[0];
+    expect(report.grouped[0].affectedUrls).toEqual(["https://example.test/[redacted]/[redacted]"]);
+    expect(report.grouped[0].evidenceSamples[0]).toEqual({
+      pageUrl: "https://example.test/[redacted]/[redacted]",
+      evidence: { href: "https://example.test/[redacted]/[redacted]" },
+    });
+  });
+
   it("does not render or persist a report owned by another user", async () => {
     mocks.first.mockResolvedValueOnce({
       screenshot_key: null,
@@ -141,5 +172,27 @@ describe("PDF report generation route", () => {
     expect(mocks.renderPdf).not.toHaveBeenCalled();
     expect(bucket.put).not.toHaveBeenCalled();
     expect(mocks.run).not.toHaveBeenCalled();
+  });
+
+  it("does not serve a PDF generated before URL redaction was added", async () => {
+    mocks.first.mockImplementationOnce(async (_db: unknown, sql: string) => {
+      if (sql.includes("JOIN audit_jobs")) {
+        return { screenshot_key: null, mobile_screenshot_key: null, report_key: "legacy-report", user_id: "user-1" };
+      }
+      return null;
+    });
+    bucket.get.mockResolvedValue({ body: new Uint8Array([37, 80, 68, 70]), customMetadata: {} });
+
+    const response = await makeApp().request(
+      "/api/reports/pdf/result-1",
+      { method: "GET" },
+      makeEnv(bucket),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: "This report needs regeneration before download.",
+      code: "report_refresh_required",
+    });
   });
 });

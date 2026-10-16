@@ -492,4 +492,65 @@ describe("audit queue idempotency", () => {
     expect(prepared.some((statement) => statement.sql.includes("INSERT INTO findings")
       && statement.params[5] === "reliability.browser-analysis-unavailable")).toBe(true);
   });
+
+  it("redacts page and finding URLs before persisting audit records", async () => {
+    mocks.first
+      .mockResolvedValueOnce(jobRow)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    const privateUrl = "https://example.com/reset/opaque-secret-value?token=private";
+    mocks.crawlSite.mockResolvedValue({
+      pages: [{
+        ctx: {
+          url: privateUrl,
+          finalUrl: privateUrl,
+          statusCode: 200,
+          responseMs: 100,
+          bytes: 1000,
+          headers: {},
+          meta: { title: "Home", metaDescription: "", canonical: privateUrl, h1Count: 0, robotsMeta: "" },
+        },
+        findings: [{
+          ruleId: "seo.test",
+          category: "seo",
+          severity: "low",
+          title: "Example finding",
+          description: "Description",
+          pageUrl: privateUrl,
+          evidence: { finalUrl: privateUrl },
+          recommendation: "Fix it",
+        }],
+        depth: 0,
+      }],
+      findings: [],
+      brokenLinks: 0,
+      coverageIncomplete: false,
+      assessmentTruncatedUrls: [],
+      homepageFailure: null,
+      robotsBlock: null,
+      unsafePathBlock: null,
+      browserRequestAllowed: true,
+    });
+    mocks.runBrowserAnalysis.mockResolvedValue(null);
+    const prepared: Array<{ sql: string; params: unknown[] }> = [];
+    const env = {
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...params: unknown[]) => { prepared.push({ sql, params }); return { sql, params }; } };
+        },
+        batch: vi.fn(async () => []),
+      },
+    } as unknown as Bindings;
+
+    await processAuditJob(env, { type: "audit", auditJobId: "job-1" } as AuditJob);
+
+    const pageInsert = prepared.find((statement) => statement.sql.includes("INSERT INTO audit_pages"));
+    const findingInsert = prepared.find((statement) => statement.sql.includes("INSERT INTO findings")
+      && statement.params[5] === "seo.test");
+    expect(pageInsert?.params[2]).toBe("https://example.com/[redacted]/[redacted]");
+    expect(pageInsert?.params[7]).toBe("https://example.com/[redacted]/[redacted]");
+    expect(findingInsert?.params[2]).toBe("https://example.com/[redacted]/[redacted]");
+    expect(String(findingInsert?.params[8])).not.toContain("private");
+    expect(String(findingInsert?.params[8])).not.toContain("opaque-secret-value");
+  });
 });

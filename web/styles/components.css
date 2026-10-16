@@ -824,6 +824,11 @@
   overflow-wrap: anywhere;
   color: hsl(var(--text));
 }
+.lx-result__url-note {
+  margin: 4px 0 0;
+  color: hsl(var(--text-muted));
+  font-size: var(--type-caption);
+}
 .lx-result__score {
   display: flex;
   align-items: baseline;

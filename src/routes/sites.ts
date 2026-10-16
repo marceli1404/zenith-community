@@ -14,6 +14,7 @@ import { normalizeOrigin } from "@shared/url";
 import { canAddSite, getMaxSiteCount, getUptimeInterval } from "@shared/entitlements";
 import { displayOverallScoreSql, reliabilityScore } from "@shared/scoring";
 import { safeFetch } from "../lib/http";
+import { sanitizeAuditUrl } from "@shared/audit-privacy";
 
 const sites = new Hono<AppEnv>();
 sites.use("*", requireAuth);
@@ -180,7 +181,7 @@ sites.post("/", async (c) => {
       id,
       userId,
       parsed.data.name ?? origin.replace(/^https?:\/\//, ""),
-      target.url,
+      origin,
       origin,
       token,
       ts,
@@ -425,7 +426,7 @@ function publicSite(row: SiteRow) {
   return {
     id: row.id,
     name: row.name,
-    url: row.url,
+    url: sanitizeAuditUrl(row.url),
     origin: row.normalized_origin,
     status: row.status,
     verificationToken: row.verification_token,

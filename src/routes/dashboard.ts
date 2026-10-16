@@ -5,6 +5,7 @@ import type { AppEnv } from "../middleware";
 import { requireAuth } from "../middleware";
 import { all, first } from "../db";
 import { displayOverallScoreSql, reliabilityScore } from "@shared/scoring";
+import { sanitizeAuditUrl } from "@shared/audit-privacy";
 
 const dashboard = new Hono<AppEnv>();
 dashboard.use("*", requireAuth);
@@ -80,7 +81,7 @@ dashboard.get("/overview", async (c) => {
       `SELECT SUM(uc.ok) AS ok, COUNT(*) AS total FROM uptime_checks uc JOIN sites s ON s.id = uc.site_id WHERE s.user_id = ? AND uc.checked_at >= ?`, userId, Date.now() - day),
     first<{ avg: number | null }>(c.env.DB,
       `SELECT AVG(${displayOverallScoreSql("ar")}) AS avg FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id WHERE aj.user_id = ?`, userId),
-    all(c.env.DB,
+    all<Record<string, unknown> & { target_origin?: string | null }>(c.env.DB,
       `SELECT aj.id, aj.status, aj.queued_at, ${displayOverallScoreSql("ar")} AS overall_score, s.name AS site_name, aj.target_origin
        FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id LEFT JOIN sites s ON s.id = aj.site_id
        WHERE aj.user_id = ? ORDER BY aj.queued_at DESC LIMIT 5`, userId),
@@ -94,7 +95,10 @@ dashboard.get("/overview", async (c) => {
     openIncidents: openIncidents?.n ?? 0,
     uptime24h: reliabilityScore(uptime?.ok ?? 0, uptime?.total ?? 0),
     avgHealthScore: health?.avg != null ? Math.round(health.avg) : null,
-    recentAudits,
+    recentAudits: recentAudits.map((audit) => ({
+      ...audit,
+      target_origin: typeof audit.target_origin === "string" ? sanitizeAuditUrl(audit.target_origin) : audit.target_origin,
+    })),
     recentIncidents,
   });
 });

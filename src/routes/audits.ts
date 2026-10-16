@@ -11,6 +11,7 @@ import { getAuditPriority } from "@shared/entitlements";
 import { groupFindings, type Finding } from "@shared/findings";
 import { displayOverallScoreSql, isOverallScoreAssessed, scoreFromSnapshot } from "@shared/scoring";
 import { parseEvidenceJson } from "@shared/reliability";
+import { sanitizeAuditEvidence, sanitizeAuditUrl } from "@shared/audit-privacy";
 
 const audits = new Hono<AppEnv>();
 audits.use("*", requireAuth);
@@ -102,7 +103,8 @@ audits.get("/:id", async (c) => {
     seo_score: number; security_score: number; categories_assessed: number; reliability_deduction: number | null;
     page_count: number; broken_link_count: number; site_id: string | null;
   }>(c.env.DB, `SELECT * FROM audit_results WHERE audit_job_id = ?`, job.id);
-  if (!result) return c.json({ job, result: null });
+  const safeJob = { ...job, target_origin: job.target_origin ? sanitizeAuditUrl(job.target_origin) : null };
+  if (!result) return c.json({ job: safeJob, result: null });
 
   const rows = await all<{
     page_url: string | null; category: Finding["category"]; severity: Finding["severity"];
@@ -110,7 +112,8 @@ audits.get("/:id", async (c) => {
   }>(c.env.DB, `SELECT * FROM findings WHERE audit_result_id = ?`, result.id);
   const findings: Finding[] = rows.map((row) => ({
     ruleId: row.rule_id, category: row.category, severity: row.severity, title: row.title,
-    description: row.description, pageUrl: row.page_url ?? "", evidence: parseEvidenceJson(row.evidence_json),
+    description: row.description, pageUrl: sanitizeAuditUrl(row.page_url ?? ""),
+    evidence: sanitizeAuditEvidence(parseEvidenceJson(row.evidence_json), row.page_url ?? ""),
     recommendation: row.recommendation,
   }));
   const grouped = groupFindings(findings);
@@ -126,7 +129,7 @@ audits.get("/:id", async (c) => {
     reliabilityDeduction: result.reliability_deduction,
   });
   return c.json({
-    job,
+    job: safeJob,
     result: {
       id: result.id,
       scores,

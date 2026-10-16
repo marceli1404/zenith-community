@@ -341,13 +341,16 @@ export function FindingCard({ f }: { f: GroupedFinding }) {
         <p className="finding-card__fix"><strong>What to do: </strong>{f.recommendation}</p>
         {f.affectedUrls.length > 0 && (
           <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="finding-card__pages">
-            <ChevronDown size={15} /> {open ? "Hide" : "Show"} affected pages ({f.affectedUrls.length})
+            <ChevronDown size={15} /> {open ? "Hide" : "Show"} affected URL samples ({f.affectedUrls.length})
           </button>
         )}
         {open && (
-          <ul className="finding-detail">
-            {f.affectedUrls.slice(0, 20).map((u) => <li key={u}>{u}</li>)}
-          </ul>
+          <>
+            <p className="finding-detail__privacy">Displayed URLs omit query strings and likely token-like path segments.</p>
+            <ul className="finding-detail">
+              {f.affectedUrls.slice(0, 20).map((u) => <li key={u}>{u}</li>)}
+            </ul>
+          </>
         )}
       </div>
     </article>

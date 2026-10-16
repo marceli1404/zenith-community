@@ -14,6 +14,7 @@ import { groupFindings, sortBySeverity, type Finding, type GroupedFinding } from
 import { computeScores, type AuditScore } from "@shared/scoring";
 import { normalizeOrigin, isSameOrigin, isUnsafeCrawlPath } from "@shared/url";
 import { isDisallowed, loadRobots } from "./robots";
+import { sanitizeAuditUrl } from "@shared/audit-privacy";
 
 export interface QuickScanResult {
   ok: true;
@@ -93,7 +94,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     return notAssessedQuickScan(target, false, {
       ruleId: "reliability.unsafe-path",
       title: "Scan not assessed because the requested path is unsafe",
-      description: `The requested path ${requestedPath} is excluded from scanning because it may change site state. No site pages were assessed.`,
+      description: "The requested path is excluded from scanning because it may change site state. No site pages were assessed.",
       recommendation: "Submit a read-only page URL, then run the scan again.",
     });
   }
@@ -101,7 +102,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
   if (requestedPolicy.block || isDisallowed(requestedPolicy.rules, `${requestedUrl.pathname || "/"}${requestedUrl.search}`)) {
     const description = requestedPolicy.block
       ? "robots.txt could not be read, so the scanner did not request any site pages."
-      : `robots.txt disallows the scanner from requesting ${requestedUrl.pathname || "/"}${requestedUrl.search}; no site pages were assessed.`;
+      : "robots.txt disallows the scanner from requesting this page; no site pages were assessed.";
     return notAssessedQuickScan(target, requestedPolicy.found, {
       ruleId: "reliability.robots-disallowed",
       title: "Scan not assessed because of robots.txt",
@@ -195,8 +196,8 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
   const bytes = primary.contentLength ?? (primary.body ? primary.body.length : 0);
 
   const ctx: PageContext = {
-    url: target,
-    finalUrl: primary.finalUrl,
+    url: sanitizeAuditUrl(target),
+    finalUrl: sanitizeAuditUrl(primary.finalUrl),
     statusCode: primary.status,
     responseMs: primary.responseMs,
     bytes,
@@ -309,8 +310,8 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
 
   return {
     ok: true,
-    url: target,
-    finalUrl: primary.finalUrl,
+    url: sanitizeAuditUrl(target),
+    finalUrl: sanitizeAuditUrl(primary.finalUrl),
     score,
     topFindings: top,
     additionalFindingCount: Math.max(0, ranked.length - top.length),
@@ -348,8 +349,8 @@ function notAssessedQuickScan(
 ): QuickScanResult {
   return {
     ok: true,
-    url: target,
-    finalUrl: target,
+    url: sanitizeAuditUrl(target),
+    finalUrl: sanitizeAuditUrl(target),
     score: {
       overall: null,
       categories: { security: null, accessibility: null, performance: null, seo: null },
@@ -391,8 +392,8 @@ function unavailableQuickScan(target: string, errorCode: string, evidence: Recor
   );
   return {
     ok: true,
-    url: target,
-    finalUrl: target,
+    url: sanitizeAuditUrl(target),
+    finalUrl: sanitizeAuditUrl(target),
     score: computeScores([], { siteAvailable: false }),
     topFindings: [{
       ruleId: finding.ruleId,

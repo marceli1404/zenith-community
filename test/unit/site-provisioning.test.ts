@@ -56,7 +56,7 @@ describe("site and monitor provisioning", () => {
     mocks.first
       .mockResolvedValueOnce({ n: 0 })
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(siteRow);
+      .mockResolvedValueOnce({ ...siteRow, url: "https://example.com/reset/Ab12Cd34Ef56Gh78?token=private" });
     const db = testDb();
     const app = new Hono();
     app.route("/api/sites", sites);
@@ -72,10 +72,12 @@ describe("site and monitor provisioning", () => {
     );
 
     expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ site: { url: "https://example.com/[redacted]/[redacted]" } });
     expect(mocks.batch).toHaveBeenCalledTimes(1);
     const statements = mocks.batch.mock.calls[0]?.[1] as Array<{ sql: string }>;
     expect(statements).toHaveLength(2);
     expect(statements[0]?.sql).toContain("INSERT INTO sites");
+    expect((statements[0] as { params: unknown[] }).params[3]).toBe("https://example.com");
     expect(statements[1]?.sql).toContain("INSERT INTO monitors");
     expect(mocks.first).toHaveBeenCalledTimes(3);
   });

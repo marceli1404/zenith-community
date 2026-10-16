@@ -73,7 +73,7 @@ export function generateReportHtml(data: ReportData): string {
       <p class="finding-desc">${esc(g.description)}</p>
       ${diagnosis ? `<p class="finding-desc"><strong>Observed:</strong> ${esc(diagnosis.summary)} (<code>${esc(diagnosis.code)}</code>)</p>` : ""}
       <p class="finding-rec"><strong>Recommendation:</strong> ${esc(g.recommendation)}</p>
-      <p class="finding-urls">Affected: ${g.affectedUrls.slice(0, 8).map(esc).join(", ")}${g.affectedUrls.length > 8 ? ` +${g.affectedUrls.length - 8} more` : ""}</p>
+      <p class="finding-urls">Affected URLs (query strings and likely token-like path segments omitted): ${g.affectedUrls.slice(0, 8).map(esc).join(", ")}${g.affectedUrls.length > 8 ? ` +${g.affectedUrls.length - 8} more` : ""}</p>
     </div>`;
       },
     )

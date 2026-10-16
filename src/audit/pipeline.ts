@@ -15,6 +15,7 @@ import { computeScores, CURRENT_SCORING_VERSION } from "@shared/scoring";
 import { getMaxAuditPages } from "@shared/entitlements";
 import { resolveAccess } from "../lib/access";
 import { enqueueEmail } from "../lib/email";
+import { sanitizeAuditEvidence, sanitizeAuditUrl } from "@shared/audit-privacy";
 
 interface JobRow {
   id: string;
@@ -66,9 +67,8 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
     const findings: Finding[] = [...crawl.findings, ...crawl.pages.flatMap((p) => p.findings)];
     if (crawl.robotsBlock) {
       const block = crawl.robotsBlock;
-      const target = block.kind === "disallowed" ? `${block.origin ?? ""}${block.path}` : origin;
       const description = block.kind === "disallowed"
-        ? `robots.txt disallows this crawler from requesting ${target}; no site pages were assessed.`
+        ? "robots.txt disallows the crawler from requesting the homepage; no site pages were assessed."
         : `robots.txt${block.origin ? ` at ${block.origin}` : ""} could not be read${block.status ? ` (HTTP ${block.status})` : ""}, so the crawler did not request any site pages.`;
       findings.push({
         category: "reliability",
@@ -83,13 +83,12 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
     }
     if (crawl.unsafePathBlock) {
       const block = crawl.unsafePathBlock;
-      const target = `${block.origin}${block.path}`;
       findings.push({
         category: "reliability",
         severity: "info",
         ruleId: "reliability.unsafe-redirect",
         title: "Audit not assessed because of an unsafe redirect",
-        description: `The homepage redirects to ${target}, a path the crawler excludes from requests. No site pages were assessed.`,
+        description: "The homepage redirects to a path the crawler excludes from requests. No site pages were assessed.",
         pageUrl: origin,
         evidence: { ...block },
         recommendation: "Redirect the homepage to a read-only page route, then run the audit again.",
@@ -193,8 +192,9 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
             (id, audit_result_id, url, status_code, response_ms, title, meta_description, canonical_url, h1_count, bytes, indexable, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
-          newId("pg"), resultId, p.ctx.finalUrl, p.ctx.statusCode, p.ctx.responseMs,
-          p.ctx.meta.title, p.ctx.meta.metaDescription, p.ctx.meta.canonical, p.ctx.meta.h1Count,
+          newId("pg"), resultId, sanitizeAuditUrl(p.ctx.finalUrl), p.ctx.statusCode, p.ctx.responseMs,
+          p.ctx.meta.title, p.ctx.meta.metaDescription,
+          p.ctx.meta.canonical ? sanitizeAuditUrl(p.ctx.meta.canonical, p.ctx.finalUrl) : null, p.ctx.meta.h1Count,
           p.ctx.bytes, p.ctx.meta.robotsMeta && /noindex/.test(p.ctx.meta.robotsMeta) ? 0 : 1, ts,
         ),
       );
@@ -208,8 +208,8 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
               (id, audit_result_id, page_url, category, severity, rule_id, title, description, evidence_json, recommendation, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           ).bind(
-            newId("fnd"), resultId, sample.pageUrl, g.category, g.severity, g.ruleId,
-            g.title, g.description, JSON.stringify(sample.evidence), g.recommendation, ts,
+            newId("fnd"), resultId, sanitizeAuditUrl(sample.pageUrl), g.category, g.severity, g.ruleId,
+            g.title, g.description, JSON.stringify(sanitizeAuditEvidence(sample.evidence, sample.pageUrl)), g.recommendation, ts,
           ),
         );
       }

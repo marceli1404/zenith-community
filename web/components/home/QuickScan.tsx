@@ -280,6 +280,7 @@ function ScanReport({ result }: { result: ScanResult }) {
         <div>
           <p className="lx-label">Quick scan result</p>
           <h3 className="lx-result__url" id="quick-scan-result-title">{displayUrl}</h3>
+          <p className="lx-result__url-note">Displayed address omits query strings and likely token-like path segments.</p>
         </div>
         <p className="lx-result__score" aria-label={notAssessed ? "Overall score not assessed" : `Overall score ${result.score.overall} out of 100, ${label}`}>
           {result.score.overall === null
