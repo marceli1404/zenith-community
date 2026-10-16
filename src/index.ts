@@ -6,7 +6,7 @@ import { withConfig, securityHeaders, withAuth, sameOriginGuard, type AppEnv } f
 import { getAuth } from "./auth";
 import { scheduleDueMonitors, processMonitorCheck } from "./monitor";
 import { processAuditJob } from "./audit/pipeline";
-import { deliverEmail, EmailDeliveryBusyError } from "./lib/email";
+import { deliverEmail, EmailDeliveryBusyError, flushEmailOutbox } from "./lib/email";
 import { downsampleAndPrune } from "./maintenance";
 import scan from "./routes/scan";
 import sites from "./routes/sites";
@@ -85,6 +85,7 @@ export default {
   fetch: app.fetch,
   async scheduled(event: ScheduledController, env: Bindings, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(scheduleDueMonitors(env));
+    ctx.waitUntil(flushEmailOutbox(env));
     if (new Date(event.scheduledTime).getUTCMinutes() === 3) ctx.waitUntil(downsampleAndPrune(env));
   },
   async queue(batch: MessageBatch, env: Bindings): Promise<void> {

@@ -26,6 +26,7 @@ export interface CrawledPage {
 
 export type HomepageFailure =
   | { kind: "http_error"; status: number }
+  | { kind: "rate_limited"; status: 429 }
   | { kind: "partial_page"; status: 206 }
   | { kind: "generic_error_page"; status: number }
   | { kind: "empty_page"; status: number }
@@ -216,6 +217,19 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
         continue;
       }
       if (res.status >= 400) {
+        if (res.status === 429) {
+          if (depth === 0) homepageFailure = { kind: "rate_limited", status: 429 };
+          else {
+            markCoverageIncomplete(
+              url,
+              "The linked page returned HTTP 429 and limited the scanner, so its content could not be assessed. This does not confirm whether visitors can access it.",
+              { kind: "rate_limited", status: 429 },
+              "Linked page was rate-limited",
+              "Wait for the site's rate limit to reset, then run the audit again.",
+            );
+          }
+          continue;
+        }
         if (depth === 0) homepageFailure = { kind: "http_error", status: res.status };
         else {
           brokenLinks += 1;

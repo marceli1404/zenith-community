@@ -96,6 +96,18 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
     }
     if (crawl.homepageFailure) {
       const failure = crawl.homepageFailure;
+      if (failure.kind === "rate_limited") {
+        findings.push({
+          category: "reliability",
+          severity: "info",
+          ruleId: "reliability.analysis-incomplete",
+          title: "Audit was rate-limited",
+          description: "The homepage returned HTTP 429 and limited the scanner, so it could not be assessed. This does not confirm whether visitors can access it.",
+          pageUrl: origin,
+          evidence: failure,
+          recommendation: "Wait for the site's rate limit to reset, then run the audit again.",
+        });
+      } else {
       const description = failure.kind === "http_error"
         ? `The homepage returned HTTP ${failure.status}; the audit could not assess the site.`
         : failure.kind === "partial_page"
@@ -121,6 +133,7 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
           ? "Serve page content at the homepage, then run the audit again."
           : "Restore access to the homepage, then run the audit again.",
       });
+      }
     }
 
     // Browser checks cannot assess an unavailable or non-page homepage.
@@ -158,7 +171,7 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
       && crawl.coverageIncomplete !== true
       && (crawl.assessmentTruncatedUrls?.length ?? 0) === 0;
     const browserHomepageFailure = browser !== null && !browserHomepageIsAssessable(browser);
-    const homepageUnavailable = crawl.homepageFailure !== null || browserHomepageFailure;
+    const homepageUnavailable = (crawl.homepageFailure !== null && crawl.homepageFailure.kind !== "rate_limited") || browserHomepageFailure;
     // A successful HTTP crawl is not a complete audit if the browser checks
     // could not run. Keep the result as the existing unassessed sentinel so
     // summary queries and report normalization do not present a partial score.

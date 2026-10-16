@@ -42,7 +42,7 @@
     "consumers": [
       { "queue": "zenith-community-monitor", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 },
       { "queue": "zenith-community-audit", "max_batch_size": 5, "max_batch_timeout": 5, "max_retries": 3 },
-      { "queue": "zenith-community-email", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
+      { "queue": "zenith-community-email", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3, "dead_letter_queue": "zenith-community-email-dlq" }
     ]
   },
   "ratelimits": [

@@ -18,6 +18,10 @@ export class EmailDeliveryBusyError extends Error {
 
 const DELIVERY_LEASE_MS = 60_000;
 const DELIVERY_LEASE_RENEW_MS = 20_000;
+const OUTBOX_LEASE_MS = 60_000;
+const OUTBOX_MAX_PENDING = 1_000;
+const OUTBOX_BATCH_SIZE = 25;
+const OUTBOX_DEFAULT_TTL_MS = 24 * 60 * 60_000;
 
 export interface EmailMessage {
   to: string;
@@ -99,15 +103,98 @@ export function getEmailProvider(env: Bindings): EmailProvider {
   return new CloudflareEmailProvider(env.EMAIL);
 }
 
-/** Enqueue an email for asynchronous, isolated delivery. */
+/** Persist an email before publishing it, so a Queue producer outage is recoverable. */
 export async function enqueueEmail(env: Bindings, job: EmailJob): Promise<void> {
   if (!computeEmailEnabled(env)) return;
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const expiresAt = job.expiresAt ?? now + outboxTtl(job.template);
+  const durableJob: EmailJob = {
+    ...job,
+    // Re-publishing an outbox row after an interrupted send must not send a
+    // second copy after the first queue message has already been delivered.
+    dedupeKey: job.dedupeKey ?? `email-outbox:${id}`,
+    expiresAt,
+  };
+  await env.DB.prepare(`DELETE FROM email_outbox WHERE expires_at <= ?`).bind(now).run();
+  const inserted = await env.DB.prepare(
+    `INSERT INTO email_outbox (id, payload, created_at, available_at, expires_at, attempts)
+     SELECT ?, ?, ?, ?, ?, 0 WHERE (SELECT COUNT(*) FROM email_outbox) < ?`,
+  ).bind(id, JSON.stringify(durableJob), now, now, expiresAt, OUTBOX_MAX_PENDING).run();
+  if ((inserted.meta?.changes ?? 0) !== 1) {
+    throw new Error("The email delivery queue is full; retry this request shortly.");
+  }
+
+  try {
+    await dispatchOutboxItem(env, id);
+  } catch (err) {
+    // The durable row remains available for the next scheduled recovery pass.
+    // Do not log the payload: auth messages contain one-time codes or links.
+    console.error("Email outbox publish deferred", job.template, err instanceof Error ? err.name : "unknown error");
+  }
+}
+
+/** Retry bounded outbox rows that could not be published during a request. */
+export async function flushEmailOutbox(env: Bindings): Promise<void> {
+  const now = Date.now();
+  const expired = await env.DB.prepare(`DELETE FROM email_outbox WHERE expires_at <= ?`).bind(now).run();
+  if ((expired.meta?.changes ?? 0) > 0) console.warn("Expired email outbox messages", expired.meta?.changes);
+  const rows = await env.DB.prepare(
+    `SELECT id FROM email_outbox
+     WHERE available_at <= ? AND expires_at > ? AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
+     ORDER BY created_at LIMIT ?`,
+  ).bind(now, now, now, OUTBOX_BATCH_SIZE).all<{ id: string }>();
+  for (const row of rows.results ?? []) {
+    try {
+      await dispatchOutboxItem(env, row.id);
+    } catch (error) {
+      // One damaged row must not prevent recovery of the rest of the batch.
+      console.error("Email outbox recovery deferred", error instanceof Error ? error.name : "unknown error");
+    }
+  }
+}
+
+async function dispatchOutboxItem(env: Bindings, id: string): Promise<void> {
+  const now = Date.now();
+  const token = crypto.randomUUID();
+  const claim = await env.DB.prepare(
+    `UPDATE email_outbox SET lease_token = ?, lease_expires_at = ?
+     WHERE id = ? AND available_at <= ? AND expires_at > ?
+       AND (lease_expires_at IS NULL OR lease_expires_at <= ?)`,
+  ).bind(token, now + OUTBOX_LEASE_MS, id, now, now, now).run();
+  if ((claim.meta?.changes ?? 0) !== 1) return;
+
+  const row = await env.DB.prepare(
+    `SELECT payload, expires_at, attempts FROM email_outbox WHERE id = ? AND lease_token = ?`,
+  ).bind(id, token).first<{ payload: string; expires_at: number; attempts: number }>();
+  if (!row) return;
+  if (row.expires_at <= Date.now()) {
+    await env.DB.prepare(`DELETE FROM email_outbox WHERE id = ? AND lease_token = ?`).bind(id, token).run();
+    console.warn("Expired email outbox message");
+    return;
+  }
+
+  const job = JSON.parse(row.payload) as EmailJob;
   try {
     await env.EMAIL_QUEUE.send(job);
-  } catch (err) {
-    // Never let an email enqueue failure bubble into caller logic.
-    console.error("Failed to enqueue email", job.template, err instanceof Error ? err.message : err);
+  } catch (error) {
+    const attempts = row.attempts + 1;
+    const delayMs = Math.min(15 * 60_000, 2 ** Math.min(attempts, 9) * 1_000);
+    await env.DB.prepare(
+      `UPDATE email_outbox SET attempts = ?, available_at = ?, lease_token = NULL, lease_expires_at = NULL
+       WHERE id = ? AND lease_token = ?`,
+    ).bind(attempts, Date.now() + delayMs, id, token).run();
+    console.error("Email outbox publish failed", job.template, error instanceof Error ? error.name : "unknown error");
+    return;
   }
+
+  await env.DB.prepare(`DELETE FROM email_outbox WHERE id = ? AND lease_token = ?`).bind(id, token).run();
+}
+
+function outboxTtl(template: string): number {
+  if (template === "verify_otp") return 9 * 60_000;
+  if (template === "password_reset" || template === "verify_email") return 55 * 60_000;
+  return OUTBOX_DEFAULT_TTL_MS;
 }
 
 /** Called by the EMAIL_QUEUE consumer to actually render + send one email.
@@ -115,6 +202,10 @@ export async function enqueueEmail(env: Bindings, job: EmailJob): Promise<void> 
  * cannot permanently suppress a retry. Resend also receives the stable key to
  * suppress duplicate acceptance during its idempotency window. */
 export async function deliverEmail(env: Bindings, job: EmailJob): Promise<void> {
+  if (job.expiresAt !== undefined && job.expiresAt <= Date.now()) {
+    console.warn("Expired email delivery job", job.template);
+    return;
+  }
   let claimedKey: string | null = null;
   const leaseToken = job.dedupeKey ? crypto.randomUUID() : null;
   const claimNow = Date.now();

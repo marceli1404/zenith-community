@@ -129,6 +129,41 @@ describe("audit queue idempotency", () => {
       && statement.params[5] === "reliability.homepage-unavailable")).toBe(true);
   });
 
+  it("stores a homepage 429 as unassessed rather than a measured outage", async () => {
+    mocks.first.mockResolvedValueOnce(jobRow).mockResolvedValueOnce(null);
+    mocks.crawlSite.mockResolvedValue({
+      pages: [],
+      findings: [],
+      brokenLinks: 0,
+      assessmentTruncatedUrls: [],
+      coverageIncomplete: false,
+      homepageFailure: { kind: "rate_limited", status: 429 },
+      robotsBlock: null,
+      unsafePathBlock: null,
+    });
+    const prepared: Array<{ sql: string; params: unknown[] }> = [];
+    const env = {
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...params: unknown[]) => { prepared.push({ sql, params }); return { sql, params }; } };
+        },
+        batch: vi.fn(async () => []),
+      },
+    } as unknown as Bindings;
+
+    await processAuditJob(env, { type: "audit", auditJobId: "job-1" } as AuditJob);
+
+    const resultInsert = prepared.find((statement) => statement.sql.includes("INSERT INTO audit_results"));
+    expect(resultInsert?.params[3]).toBe(0); // Internal sentinel; display normalization uses categories_assessed.
+    expect(resultInsert?.params[8]).toBe(0);
+    expect(resultInsert?.params[9]).toBeNull();
+    expect(prepared.some((statement) => statement.sql.includes("INSERT INTO findings")
+      && statement.params[5] === "reliability.analysis-incomplete")).toBe(true);
+    expect(prepared.some((statement) => statement.sql.includes("INSERT INTO findings")
+      && statement.params[5] === "reliability.homepage-unavailable")).toBe(false);
+    expect(mocks.runBrowserAnalysis).not.toHaveBeenCalled();
+  });
+
   it("does not publish an overall score when any crawled response was truncated", async () => {
     mocks.first.mockResolvedValueOnce(jobRow).mockResolvedValueOnce(null);
     mocks.crawlSite.mockResolvedValue({

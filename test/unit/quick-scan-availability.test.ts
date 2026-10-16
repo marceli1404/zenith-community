@@ -68,6 +68,33 @@ describe("quick scan homepage availability", () => {
     }));
   });
 
+  it("does not assign a score when the homepage rate-limits Quick Scan", async () => {
+    safeFetchMock.mockResolvedValue({
+      ok: true,
+      finalUrl: "https://example.com/",
+      status: 429,
+      headers: new Headers({ "content-type": "text/html", "retry-after": "60" }),
+      responseMs: 20,
+      redirectCount: 0,
+      body: "",
+      contentLength: 0,
+    });
+
+    const result = await quickScan("https://example.com/", "Zenith");
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.score.overall).toBeNull();
+    expect(result.score.categories).toEqual({ security: null, accessibility: null, performance: null, seo: null });
+    expect(result.topFindings).toContainEqual(expect.objectContaining({
+      ruleId: "reliability.analysis-incomplete",
+      severity: "info",
+      title: "Quick Scan was rate-limited",
+      description: "The homepage returned HTTP 429 and limited the scanner, so it could not be assessed. This does not confirm whether visitors can access it.",
+    }));
+    expect(extractPageMeta).not.toHaveBeenCalled();
+  });
+
   it("does not score a homepage after its response body is truncated", async () => {
     safeFetchMock.mockResolvedValue({
       ok: true,

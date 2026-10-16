@@ -52,6 +52,8 @@ export interface EmailJob {
   to: string;
   data: Record<string, unknown>;
   dedupeKey?: string;
+  /** Old time-sensitive auth links and codes must never be delivered after expiry. */
+  expiresAt?: number;
 }
 
 const configSchema = z.object({

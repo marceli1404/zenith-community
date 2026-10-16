@@ -24,7 +24,7 @@ Remove-Item Env:PRODUCTION_APP_URL
 
 ## Queues and monitoring
 
-The Worker processes `zenith-community-monitor`, `zenith-community-audit`, and `zenith-community-email` messages. Inspect failed messages and retry behavior in the Cloudflare dashboard. Checks use HTTP requests; audits may use Browser Rendering for a subset of checks and report assets.
+The Worker processes `zenith-community-monitor`, `zenith-community-audit`, and `zenith-community-email` messages. A scheduled task retries email outbox rows that could not be published to the queue; codes and links expire before they can be sent late. The email queue sends messages that exhaust consumer retries to `zenith-community-email-dlq`. Check that queue regularly and recover messages before Cloudflare's four-day retention expires. Dead-letter messages can contain one-time codes, reset links, and email addresses; restrict dashboard access and never paste their bodies into tickets or logs. Inspect failed messages and retry behavior in the Cloudflare dashboard. Checks use HTTP requests; audits may use Browser Rendering for a subset of checks and report assets.
 
 ## Data management
 

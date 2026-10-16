@@ -37,8 +37,9 @@ export default function Methodology() {
           </p>
           <p>
             If the crawler cannot retrieve a complete HTML homepage, the overall score is 0/100 and category scores are unassessed.
-            This includes a failed request, an error or partial response, a non-HTML or empty body, or a generic server-error title or
+            This includes a failed request, an HTTP error other than 429, a partial response, a non-HTML or empty body, or a generic server-error title or
             page—even when it returns HTTP 200. A matching error heading with diagnostic output also counts as a homepage failure.
+            HTTP 429 only means the scanner was rate-limited, so the audit is marked Not assessed rather than scored as an outage.
             The same applies if the browser's main-document response fails or is missing, is empty
             or partial, or renders no visible homepage content. Browser responses of 204 or 205 are empty; 206 is partial. If the
             crawler and browser receive different homepage responses, the report shows both observations. If browser analysis cannot
@@ -59,7 +60,7 @@ export default function Methodology() {
             assessed. It does not render the page or detect every way media can appear.
           </p>
           <p>
-            Quick Scan checks up to eight eligible same-origin links. If its limit, robots.txt, or a safety check leaves a discovered
+            Quick Scan checks up to eight eligible same-origin links. If its limit, robots.txt, a safety check, or a rate limit leaves a discovered
             link unchecked, the result reports how many links were checked and withholds the overall score.
           </p>
         </>
@@ -71,7 +72,7 @@ export default function Methodology() {
       content: (
         <>
           <p>Each distinct category issue reduces its category score by a fixed amount. Reliability issues reduce the overall score by the same amount, once per affected URL up to five URLs for each rule:</p>
-          <p>For linked-page HTTP failures, 5xx responses are critical and 4xx responses are high; network failures are medium. A quick scan confirms a linked page with one GET if HEAD returns a non-2xx response other than 429. It also tries GET if HEAD fails with a DNS/network, TLS, or timeout error. It does not retry 429 responses or crawler safety-policy blocks. Submitted URLs and discovered links with action-like paths, such as unsubscribe or logout, are skipped.</p>
+          <p>For linked-page HTTP failures, 5xx responses are critical and 4xx responses other than 429 are high; network failures are medium. A 429 response means the scanner was rate-limited, so the page is unverified and no whole-site score is calculated. A quick scan confirms a linked page with one GET if HEAD returns a non-2xx response other than 429. It also tries GET if HEAD fails with a DNS/network, TLS, or timeout error. It does not retry 429 responses or crawler safety-policy blocks. Submitted URLs and discovered links with action-like paths, such as unsubscribe or logout, are skipped.</p>
           <ul className="lx-deductions" aria-label="Points deducted per issue, by severity">
             {SEVERITIES.map((sev) => (
               <li key={sev}>
@@ -123,7 +124,7 @@ export default function Methodology() {
           </p>
           <p>
             If the rules disallow the homepage, no site pages are requested. A server or network error while fetching robots.txt prevents requests to that host. Audits are limited to 250 pages by default, with bounds
-            on link discovery, crawl depth, concurrency and response size. If those limits, a robots.txt block, an unreachable linked page or a partial response leave known same-origin pages unchecked, the audit is marked Not assessed rather than receiving a whole-site score. Redirects and browser resources must pass public-target and robots.txt
+            on link discovery, crawl depth, concurrency and response size. If those limits, a robots.txt block, an unreachable linked page, a partial response or HTTP 429 leaves a known same-origin page unchecked, the audit is marked Not assessed rather than receiving a whole-site score. Redirects and browser resources must pass public-target and robots.txt
           checks and may use another public host. The crawler checks a redirect destination's robots.txt before following it.
           Requests use GET or HEAD, and known state-changing paths such as sign-out and admin pages
           are skipped. A target can still cause side effects through a GET route or page script. Browser rendering is used on the homepage;

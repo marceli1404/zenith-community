@@ -155,6 +155,14 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     return { ok: false, errorCode: primary.errorCode, reason: primary.reason };
   }
 
+  if (primary.status === 429) {
+    return notAssessedQuickScan(target, requestedPolicy.found, {
+      ruleId: "reliability.analysis-incomplete",
+      title: "Quick Scan was rate-limited",
+      description: "The homepage returned HTTP 429 and limited the scanner, so it could not be assessed. This does not confirm whether visitors can access it.",
+      recommendation: "Wait for the site's rate limit to reset, then run Quick Scan again.",
+    });
+  }
   if (primary.status >= 400 || (primary.status >= 300 && primary.status < 400 && primary.status !== 304)) {
     return unavailableQuickScan(target, `http_${primary.status}`, { status: primary.status });
   }

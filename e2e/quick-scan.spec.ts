@@ -59,6 +59,44 @@ test("a failed homepage displays zero and leaves technical categories unassessed
   expect(submitted).toMatchObject({ url: "https://unavailable.example/" });
 });
 
+test("a rate-limited homepage is not scored as a site outage", async ({ page }) => {
+  await mockPublicConfig(page, { environment: "preview", isProduction: false, turnstileSiteKey: "" });
+  await page.route("**/api/scan", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      url: "https://limited.example/",
+      finalUrl: "https://limited.example/",
+      score: { overall: null, categories: { security: null, accessibility: null, performance: null, seo: null }, reliabilityDeduction: null },
+      topFindings: [{
+        ruleId: "reliability.analysis-incomplete",
+        category: "reliability",
+        severity: "info",
+        title: "Quick Scan was rate-limited",
+        description: "The homepage returned HTTP 429 and limited the scanner, so it could not be assessed. This does not confirm whether visitors can access it.",
+        recommendation: "Wait for the site's rate limit to reset, then run Quick Scan again.",
+      }],
+      additionalFindingCount: 0,
+      robotsTxtFound: true,
+      sitemapFound: null,
+      brokenLinks: 0,
+      checkedLinks: 0,
+      httpsRedirects: null,
+    }),
+  }));
+
+  await page.goto("/");
+  await page.getByLabel("Website address").fill("https://limited.example/");
+  await page.getByRole("button", { name: "Check site" }).click();
+
+  await expect(page.locator(".lx-result__score")).toHaveText("Not assessed");
+  await expect(page.locator(".lx-result__score")).not.toContainText("/100");
+  await expect(page.getByRole("status")).toContainText("This does not confirm whether visitors can access it.");
+  await expect(page.getByText("Not checked; site not assessed")).toBeVisible();
+  await expect(page.getByText("Reliability impact: Not assessed")).toBeVisible();
+});
+
 test("a short generic server-error response cannot receive a high Quick Scan score", async ({ page }) => {
   await mockPublicConfig(page, { environment: "preview", isProduction: false, turnstileSiteKey: "" });
   await page.route("**/api/scan", (route) => route.fulfill({

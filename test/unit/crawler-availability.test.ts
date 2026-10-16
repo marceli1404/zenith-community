@@ -135,6 +135,22 @@ describe("crawler availability and linked-page failures", () => {
     expect(result.pages).toHaveLength(0);
   });
 
+  it("marks a rate-limited homepage as unassessed rather than unavailable", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) {
+        return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "" };
+      }
+      return { ...html(url), status: 429, body: "", contentLength: 0 };
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.homepageFailure).toEqual({ kind: "rate_limited", status: 429 });
+    expect(result.pages).toHaveLength(0);
+    expect(result.coverageIncomplete).toBe(false);
+  });
+
   it("marks a partial HTTP 206 homepage response unavailable", async () => {
     fetchMock.mockImplementation(async (input) => {
       const url = String(input ?? "");
@@ -238,6 +254,31 @@ describe("crawler availability and linked-page failures", () => {
     expect(result.findings).toContainEqual(expect.objectContaining({
       ruleId: "reliability.analysis-incomplete",
       title: "Linked page could not be assessed",
+      pageUrl: "https://example.com/broken",
+    }));
+  });
+
+  it("does not count a rate-limited linked page as broken and withholds the score", async () => {
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "" };
+      if (url.endsWith("/broken")) return { ...html(url), status: 429, body: "", contentLength: 0 };
+      return html(url);
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.homepageFailure).toBeNull();
+    expect(result.brokenLinks).toBe(0);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      ruleId: "reliability.analysis-incomplete",
+      title: "Linked page was rate-limited",
+      severity: "info",
+      pageUrl: "https://example.com/broken",
+    }));
+    expect(result.findings).not.toContainEqual(expect.objectContaining({
+      ruleId: "reliability.broken-page",
       pageUrl: "https://example.com/broken",
     }));
   });
