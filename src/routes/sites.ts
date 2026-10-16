@@ -8,11 +8,11 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../middleware";
 import { requireAuth } from "../middleware";
-import { all, first, newId, now, run } from "../db";
+import { all, batch, first, newId, now, run } from "../db";
 import { validatePublicTarget } from "@shared/ssrf";
 import { normalizeOrigin } from "@shared/url";
 import { canAddSite, getMaxSiteCount, getUptimeInterval } from "@shared/entitlements";
-import { reliabilityScore } from "@shared/scoring";
+import { displayOverallScoreSql, reliabilityScore } from "@shared/scoring";
 import { safeFetch } from "../lib/http";
 
 const sites = new Hono<AppEnv>();
@@ -56,6 +56,8 @@ sites.get("/", async (c) => {
       accessibility_score: number | null;
       performance_score: number | null;
       seo_score: number | null;
+      categories_assessed: number | null;
+      homepage_unavailable: number;
       monitor_enabled: number | null;
       next_check_at: number | null;
       last_ok: number | null;
@@ -67,10 +69,11 @@ sites.get("/", async (c) => {
   >(
     c.env.DB,
     `SELECT s.*,
-       latest.overall_score AS latest_score,
+       ${displayOverallScoreSql("latest")} AS latest_score,
        latest.audit_job_id AS latest_audit_id, latest.created_at AS latest_audit_at,
-       latest.security_score, latest.accessibility_score, latest.performance_score, latest.seo_score,
-       (SELECT ar.overall_score FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id
+       latest.security_score, latest.accessibility_score, latest.performance_score, latest.seo_score, latest.categories_assessed,
+       EXISTS (SELECT 1 FROM findings latest_failure WHERE latest_failure.audit_result_id = latest.id AND latest_failure.rule_id = 'reliability.homepage-unavailable') AS homepage_unavailable,
+       (SELECT ${displayOverallScoreSql("ar")} FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id
         WHERE ar.site_id = s.id AND aj.user_id = s.user_id
         ORDER BY ar.created_at DESC, ar.id DESC LIMIT 1 OFFSET 1) AS previous_score,
        (SELECT m.enabled FROM monitors m WHERE m.site_id = s.id) AS monitor_enabled,
@@ -105,10 +108,11 @@ sites.get("/", async (c) => {
     sites: rows.map((r) => ({
       ...publicSite(r),
       latestScore: r.latest_score,
+      homepageUnavailable: r.homepage_unavailable === 1,
       latestAuditId: r.latest_audit_id,
       latestAuditAt: r.latest_audit_at,
       previousScore: r.previous_score,
-      latestCategoryScores: r.latest_audit_id ? {
+      latestCategoryScores: r.latest_audit_id && r.categories_assessed !== 0 && !r.homepage_unavailable ? {
         security: r.security_score,
         accessibility: r.accessibility_score,
         performance: r.performance_score,
@@ -165,32 +169,28 @@ sites.post("/", async (c) => {
   const id = newId("site");
   const ts = now();
   const token = `zenith-verify=${newId()}`;
-  await run(
-    c.env.DB,
-    `INSERT INTO sites (id, user_id, name, url, normalized_origin, status, verification_token, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'unverified', ?, ?, ?)`,
-    id,
-    userId,
-    parsed.data.name ?? origin.replace(/^https?:\/\//, ""),
-    target.url,
-    origin,
-    token,
-    ts,
-    ts,
-  );
-
-  // Provision a monitor at the Community interval (disabled until verified).
-  await run(
-    c.env.DB,
-    `INSERT INTO monitors (id, site_id, enabled, interval_seconds, next_check_at, created_at, updated_at)
-     VALUES (?, ?, 0, ?, ?, ?, ?)`,
-    newId("mon"),
-    id,
-    getUptimeInterval(plan),
-    ts + getUptimeInterval(plan) * 1000,
-    ts,
-    ts,
-  );
+  const intervalSeconds = getUptimeInterval(plan);
+  // Site and monitor are one logical resource. D1 batch is transactional, so
+  // a failed monitor insert cannot leave a site that can never be scheduled.
+  await batch(c.env.DB, [
+    c.env.DB.prepare(
+      `INSERT INTO sites (id, user_id, name, url, normalized_origin, status, verification_token, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'unverified', ?, ?, ?)`,
+    ).bind(
+      id,
+      userId,
+      parsed.data.name ?? origin.replace(/^https?:\/\//, ""),
+      target.url,
+      origin,
+      token,
+      ts,
+      ts,
+    ),
+    c.env.DB.prepare(
+      `INSERT INTO monitors (id, site_id, enabled, interval_seconds, next_check_at, created_at, updated_at)
+       VALUES (?, ?, 0, ?, ?, ?, ?)`,
+    ).bind(newId("mon"), id, intervalSeconds, ts + intervalSeconds * 1000, ts, ts),
+  ]);
 
   const row = await first<SiteRow>(c.env.DB, `SELECT * FROM sites WHERE id = ?`, id);
   return c.json({ site: publicSite(row!) }, 201);
@@ -210,9 +210,10 @@ sites.get("/:id/overview", async (c) => {
   const userId = c.get("userId")!;
   const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const [latest, uptime, recentAudits] = await Promise.all([
-    first<{ audit_id: string; result_id: string; score: number; created_at: number }>(
+    first<{ audit_id: string; result_id: string; score: number | null; created_at: number; homepage_unavailable: number }>(
       c.env.DB,
-      `SELECT aj.id AS audit_id, ar.id AS result_id, ar.overall_score AS score, ar.created_at
+      `SELECT aj.id AS audit_id, ar.id AS result_id, ${displayOverallScoreSql("ar")} AS score, ar.created_at,
+              EXISTS (SELECT 1 FROM findings f WHERE f.audit_result_id = ar.id AND f.rule_id = 'reliability.homepage-unavailable') AS homepage_unavailable
        FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id
        WHERE ar.site_id = ? AND aj.user_id = ?
        ORDER BY ar.created_at DESC, ar.id DESC LIMIT 1`,
@@ -225,9 +226,10 @@ sites.get("/:id/overview", async (c) => {
       site.id,
       cutoff,
     ),
-    all<{ id: string; status: string; queued_at: number; overall_score: number | null }>(
+    all<{ id: string; status: string; queued_at: number; overall_score: number | null; homepage_unavailable: number }>(
       c.env.DB,
-      `SELECT aj.id, aj.status, aj.queued_at, ar.overall_score
+      `SELECT aj.id, aj.status, aj.queued_at, ${displayOverallScoreSql("ar")} AS overall_score,
+              EXISTS (SELECT 1 FROM findings f WHERE f.audit_result_id = ar.id AND f.rule_id = 'reliability.homepage-unavailable') AS homepage_unavailable
        FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id
        WHERE aj.site_id = ? AND aj.user_id = ? ORDER BY aj.queued_at DESC LIMIT 5`,
       site.id,
@@ -244,13 +246,14 @@ sites.get("/:id/overview", async (c) => {
     : null;
 
   return c.json({
-    health: latest ? { score: latest.score, auditId: latest.audit_id, at: latest.created_at } : null,
+    health: latest ? { score: latest.score, auditId: latest.audit_id, at: latest.created_at, homepageUnavailable: latest.homepage_unavailable === 1 } : null,
     uptime30d: uptime?.total ? Math.round(((uptime.ok ?? 0) / uptime.total) * 100) : null,
     highPriorityFindings: highPriority?.count ?? 0,
     recentAudits: recentAudits.map((audit) => ({
       id: audit.id,
       status: audit.status,
       score: audit.overall_score,
+      homepageUnavailable: audit.homepage_unavailable === 1,
       at: audit.queued_at,
     })),
   });
@@ -320,13 +323,13 @@ async function runVerification(method: string, origin: string, token: string): P
         maxBytes: 4096,
         timeoutMs: 6000,
       });
-      if (res.ok && res.status < 400 && (res.body ?? "").includes(token)) return true;
+      if (res.ok && res.status >= 200 && res.status < 300 && (res.body ?? "").includes(token)) return true;
     }
     return false;
   }
   if (method === "meta_tag") {
     const res = await safeFetch(origin, { readBody: true, maxBytes: 500_000, timeoutMs: 8000 });
-    return res.ok && (res.body ?? "").includes(token);
+    return res.ok && res.status >= 200 && res.status < 300 && (res.body ?? "").includes(token);
   }
   if (method === "dns_txt") {
     return await verifyDnsTxt(origin, token);
@@ -378,7 +381,9 @@ sites.get("/:id/detail", async (c) => {
     first(c.env.DB, `SELECT enabled, interval_seconds, last_checked_at, last_status_code, last_response_ms, last_ok FROM monitors WHERE site_id = ?`, site.id),
     all(c.env.DB, `SELECT checked_at, ok, response_ms FROM uptime_checks WHERE site_id = ? ORDER BY checked_at DESC LIMIT 100`, site.id),
     all(c.env.DB, `SELECT id, started_at, resolved_at, reason FROM incidents WHERE site_id = ? ORDER BY started_at DESC LIMIT 20`, site.id),
-    all(c.env.DB, `SELECT aj.id, aj.status, aj.queued_at, ar.overall_score FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id WHERE aj.site_id = ? ORDER BY aj.queued_at DESC LIMIT 10`, site.id),
+    all(c.env.DB, `SELECT aj.id, aj.status, aj.queued_at, ${displayOverallScoreSql("ar")} AS overall_score,
+      EXISTS (SELECT 1 FROM findings f WHERE f.audit_result_id = ar.id AND f.rule_id = 'reliability.homepage-unavailable') AS homepage_unavailable
+      FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id WHERE aj.site_id = ? ORDER BY aj.queued_at DESC LIMIT 10`, site.id),
     win(nowMs - day),
     win(nowMs - 7 * day),
     win(nowMs - 30 * day),

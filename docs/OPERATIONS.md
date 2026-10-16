@@ -8,9 +8,23 @@
 4. Create a test account, add a site you control, verify ownership, and confirm a scheduled check runs.
 5. Run an audit and verify findings, score, report generation, and an optional status page.
 
+## Production build and deployment
+
+Set `PRODUCTION_APP_URL` to the public HTTPS origin for the Worker before building or deploying. The production build writes an ignored `wrangler.production.jsonc` file with that origin and `ENVIRONMENT=production`; the hostname is not stored in the repository.
+
+In PowerShell:
+
+```powershell
+$env:PRODUCTION_APP_URL = "https://your-public-hostname"
+npm run deploy
+Remove-Item Env:PRODUCTION_APP_URL
+```
+
+`npm run deploy` builds with `wrangler.production.jsonc`. The Cloudflare Vite plugin generates the deployment config at `dist/<worker-name>/wrangler.json` and redirects Wrangler to it. Keep the default `wrangler deploy` command so it uses that built config. `npm run build` uses development settings and is for local work. Email remains disabled unless an operator configures delivery separately.
+
 ## Queues and monitoring
 
-The Worker processes `zenith-monitor`, `zenith-audit`, and `zenith-email` messages. Inspect failed messages and retry behavior in the Cloudflare dashboard. Checks use HTTP requests; audits may use Browser Rendering for a subset of checks and report assets.
+The Worker processes `zenith-community-monitor`, `zenith-community-audit`, and `zenith-community-email` messages. Inspect failed messages and retry behavior in the Cloudflare dashboard. Checks use HTTP requests; audits may use Browser Rendering for a subset of checks and report assets.
 
 ## Data management
 

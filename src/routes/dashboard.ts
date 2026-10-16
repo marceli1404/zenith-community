@@ -4,7 +4,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../middleware";
 import { requireAuth } from "../middleware";
 import { all, first } from "../db";
-import { reliabilityScore } from "@shared/scoring";
+import { displayOverallScoreSql, reliabilityScore } from "@shared/scoring";
 
 const dashboard = new Hono<AppEnv>();
 dashboard.use("*", requireAuth);
@@ -79,9 +79,9 @@ dashboard.get("/overview", async (c) => {
     first<{ ok: number; total: number }>(c.env.DB,
       `SELECT SUM(uc.ok) AS ok, COUNT(*) AS total FROM uptime_checks uc JOIN sites s ON s.id = uc.site_id WHERE s.user_id = ? AND uc.checked_at >= ?`, userId, Date.now() - day),
     first<{ avg: number | null }>(c.env.DB,
-      `SELECT AVG(ar.overall_score) AS avg FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id WHERE aj.user_id = ?`, userId),
+      `SELECT AVG(${displayOverallScoreSql("ar")}) AS avg FROM audit_results ar JOIN audit_jobs aj ON aj.id = ar.audit_job_id WHERE aj.user_id = ?`, userId),
     all(c.env.DB,
-      `SELECT aj.id, aj.status, aj.queued_at, ar.overall_score, s.name AS site_name, aj.target_origin
+      `SELECT aj.id, aj.status, aj.queued_at, ${displayOverallScoreSql("ar")} AS overall_score, s.name AS site_name, aj.target_origin
        FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id LEFT JOIN sites s ON s.id = aj.site_id
        WHERE aj.user_id = ? ORDER BY aj.queued_at DESC LIMIT 5`, userId),
     all(c.env.DB,

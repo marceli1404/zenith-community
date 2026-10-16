@@ -1,24 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * Runs the existing end-to-end suite against a *production build* served by
- * `npx vite preview --port 4173`, instead of the Vite dev server.
+ * Runs the existing end-to-end suite against a production Worker build through
+ * local Wrangler, instead of Vite's static-only preview server.
  *
  * Why this exists: the Worker sends a strict `script-src` CSP with no
  * 'unsafe-inline' (src/middleware.ts, committed in 223e5ce). In development the
  * React plugin injects its own inline react-refresh preamble, which that CSP
- * blocks, so the SPA never boots on `npm run dev` and every DOM assertion fails
- * with an empty document. The production build has no inline script, so this
- * config exercises the same specs against something that actually renders.
+ * blocks. Vite preview also bypasses the Worker asset router, so it cannot
+ * verify the shell, noindex, or not-found response behavior.
  *
- *   npm run build && npx vite preview --port 4173 --strictPort
+ *   npm run build
+ *   npx wrangler d1 migrations apply zenith-community-db --local --config dist/zenith_community_app/wrangler.json
+ *   npx wrangler dev --local --config dist/zenith_community_app/wrangler.json --port 4173
  *   npm run test:e2e:preview
  *
  * PREVIEW_URL overrides the target. There is no webServer here, so whatever
  * already listens on :4173 is what gets tested — in a worktree, serve this
- * checkout's build on its own port (e.g. `npx vite preview --port 4183
- * --strictPort`) and run with PREVIEW_URL=http://localhost:4183, or you may
- * be testing another checkout's old build.
+ * checkout's generated Worker config on its own port, then run with
+ * PREVIEW_URL=http://127.0.0.1:4183.
  */
 export default defineConfig({
   testDir: "./e2e",

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { AuthAlert, AuthLayout, AuthButton, AuthField, AuthInput, AuthPasswordInput, AuthSpinner } from "./AuthLayout";
 import { SocialButtons } from "./SocialButtons";
-import { authClient, safePostAuthPath, useAuth } from "../../lib/auth";
+import { authClient, safePostAuthPath, useAuth, useAuthConfig } from "../../lib/auth";
 
 /** Messages for states that arrive in the URL: a failed OAuth round trip, or a
  *  completed password reset. */
@@ -25,6 +25,7 @@ export default function Login() {
   const [useBackup, setUseBackup] = useState(false);
   const navigate = useNavigate();
   const { refresh } = useAuth();
+  const { config } = useAuthConfig();
   // Where to continue after a successful sign-in: set by RequireAuth when an
   // unauthenticated visit to a protected route bounced here.
   const location = useLocation();
@@ -143,7 +144,7 @@ export default function Login() {
         <AuthField
           label="Password"
           htmlFor="login-password"
-          aside={<Link to="/forgot-password" className="auth-link auth-link--quiet">Forgot password?</Link>}
+          aside={config?.emailEnabled && <Link to="/forgot-password" className="auth-link auth-link--quiet">Forgot password?</Link>}
         >
           <AuthPasswordInput
             id="login-password"

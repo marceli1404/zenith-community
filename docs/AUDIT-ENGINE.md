@@ -1,11 +1,13 @@
 # Audit engine
 
-Audits make bounded, read-only requests to public pages and do not change the target website. The crawler follows same-origin links, applies response and page limits, and respects the site's robots guidance.
+Audits make bounded GET and HEAD requests to public pages. They skip known state-changing paths and browser requests using other methods, but a target may still cause side effects through a GET route or page script. Page discovery stays on the submitted origin, while validated redirects and browser resources may use another public host. The HTTP crawler and browser rendering pass both apply the matching robots.txt rules to requested paths, including redirects and subresources. The crawler applies response and page limits.
 
 ## Checks and scores
 
-The engine groups repeated findings and scores Security, Accessibility, Performance, and Search/SEO from 100. Findings reduce their category score according to severity; the four category scores contribute equally to the overall score. Reliability findings remain separate from those category scores.
+The engine groups repeated findings and scores Security, Accessibility, Performance, and Search/SEO from 100. Findings reduce their category score according to severity; the four category scores contribute equally to the overall score. Reliability findings also reduce the overall score using the same severity deductions. Repeated linked-page failures are charged per affected URL, up to five URLs per rule.
 
-If the homepage returns HTTP 400 or higher, or the request cannot reach it, the overall score is 0/100 and the report includes a critical “Homepage unavailable” finding. Category scores remain available as observations; they are not presented as a complete assessment when the homepage cannot be assessed.
+Page discovery resolves relative links against the document's first `<base href>` when it resolves to HTTP(S), and keeps different paths and query variants separate. Same-origin crawl targets take priority within the bounded link list, so external links cannot consume the entire discovery budget. Authenticated audit submissions are limited to five per user in a rolling minute; excess submissions are rejected with HTTP 429 before they are queued.
+
+If the HTTP crawler cannot reach an HTML homepage, receives HTTP 400 or higher, receives partial content (HTTP 206), gets an empty response, or finds a generic server-error title or page (including one returned with HTTP 200), the overall score is 0/100 and category scores are marked unassessed. A matching error heading with diagnostic output is also treated as an unavailable homepage. The same applies when the browser does not receive a successful main-document response or does not render visible homepage content; the report identifies the observed response. If any page response exceeds the 1.5 MB scan limit, the audit is Not assessed because not all of its content could be checked. Redirects blocked by robots.txt or crawler safety policy remain Not assessed because no site pages were checked.
 
 Automated checks cover a subset of possible issues. They are not a security penetration test, accessibility certification, or guarantee of search ranking or performance.

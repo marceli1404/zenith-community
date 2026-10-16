@@ -9,6 +9,30 @@
   padding-bottom: var(--space-7);
   scroll-margin-top: calc(var(--nav-height) + 28px);
 }
+.lx-scan-flow {
+  width: 100%;
+  max-width: 900px;
+  margin-inline: auto;
+}
+.lx-scan-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--border-hair);
+  font-size: var(--type-caption);
+  color: hsl(var(--text-muted));
+}
+.lx-scan-facts strong {
+  color: hsl(var(--text));
+  font-weight: 500;
+}
+.lx-result__finding-category {
+  font-size: var(--type-caption);
+  color: hsl(var(--text-subtle));
+  text-transform: capitalize;
+}
 .lx-live-sheet {
   display: flex;
   flex-direction: column;

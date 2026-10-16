@@ -29,13 +29,13 @@ function useMeasuredNumber(value: number | null) {
 }
 
 /** Panel body for "Current health": the category orbit, the readings, and a caption. */
-export function HealthOrbit({ score, categories, audited, total }: { score: number | null; categories: CategoryScores | null; audited: number; total: number }) {
+export function HealthOrbit({ score, categories, audited, scored, total, unavailable = 0 }: { score: number | null; categories: CategoryScores | null; audited: number; scored: number; total: number; unavailable?: number }) {
   const shown = useMeasuredNumber(score);
   const weakest = categories ? CATEGORIES.reduce((a, b) => (categories[a[0]] <= categories[b[0]] ? a : b))[0] : null;
   return (
     <>
       <div className="ov-health">
-        <div className="console-orbit" role="img" aria-label={score === null ? "No audit score yet" : `Latest audit average ${score} out of 100, ${scoreLabel(score)}. ${audited} of ${total} sites audited.`}>
+        <div className="console-orbit" role="img" aria-label={score === null ? (audited ? `${audited} of ${total} sites audited; none had an assessed score.${unavailable ? ` ${unavailable} homepage${unavailable === 1 ? "" : "s"} could not be assessed.` : ""}` : "No site audits yet.") : `Latest audit average ${score} out of 100, ${scoreLabel(score)} across ${scored} sites with an overall score. ${unavailable ? `${unavailable} homepage${unavailable === 1 ? " is" : "s are"} unavailable; each has an overall score of 0, with category scores unassessed. ` : ""}${audited} of ${total} sites audited.`}>
           <svg viewBox="0 0 200 200" aria-hidden="true">
             <circle cx="100" cy="100" r="97" className="orbit-boundary" />
             {CATEGORIES.map(([key], i) => (
@@ -47,7 +47,7 @@ export function HealthOrbit({ score, categories, audited, total }: { score: numb
             <path d="M100 0v6M200 100h-6M100 200v-6M0 100h6" className="orbit-ticks" />
           </svg>
           <div className="console-orbit-value" aria-hidden="true">
-            {score !== null ? <><strong>{shown ?? score}</strong><span>{scoreLabel(score)}</span></> : <><ZenithMark size={40} /><span>Not audited</span></>}
+            {score !== null ? <><strong>{shown ?? score}</strong><span>{scoreLabel(score)}</span></> : <><ZenithMark size={40} /><span>{audited ? "Not assessed" : "Not audited"}</span></>}
           </div>
         </div>
         <ul className="console-categories" aria-label="Category scores">
@@ -63,7 +63,7 @@ export function HealthOrbit({ score, categories, audited, total }: { score: numb
         </ul>
       </div>
       <div className="console-health-caption">
-        <span>{score === null ? "Your first audit sets the baseline." : `Average of the latest audits, ${audited} of ${total} sites audited`}</span>
+        <span>{score === null ? audited ? `No site pages were assessed in the latest audits.${unavailable ? ` ${unavailable} homepage${unavailable === 1 ? "" : "s"} could not be assessed.` : ""}` : "Your first audit sets the baseline." : `Average overall score across ${scored} sites with an overall score, ${audited} of ${total} audited${unavailable ? `; ${unavailable} homepage${unavailable === 1 ? "" : "s"} could not be assessed (overall score 0; category scores not assessed)` : ""}`}</span>
         <Link to="/methodology" className="cn-link">How scoring works <ArrowUpRight size={14} /></Link>
       </div>
     </>

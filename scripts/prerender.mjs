@@ -18,7 +18,7 @@
  */
 
 import { createServer } from "node:http";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,6 +73,12 @@ async function main() {
     process.exit(1);
   }
 
+  // Publish the canonical project and third-party notices alongside the
+  // generated site assets, so Cloudflare Assets serves them with the Worker.
+  await copyFile(join(ROOT, "LICENSE"), join(DIST, "LICENSE"));
+  await copyFile(join(ROOT, "THIRD_PARTY_NOTICES.md"), join(DIST, "THIRD_PARTY_NOTICES.md"));
+  console.log("copied LICENSE and THIRD_PARTY_NOTICES.md to dist/client");
+
   // Preserve the pristine shell for client-only routes before we overwrite
   // index.html with prerendered landing markup. Running this script twice
   // without a rebuild would otherwise copy the landing page over the shell, and
@@ -96,6 +102,9 @@ async function main() {
   // in their first, finished render, so the snapshot is what hydration expects
   // and what a visitor without JavaScript should see.
   const page = await browser.newPage({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    window.__ZENITH_PRERENDER__ = true;
+  });
   // The API isn't running during prerender; fail those calls fast and quietly.
   await page.route("**/api/**", (route) => route.abort());
 
@@ -113,6 +122,11 @@ async function main() {
       // prerendered page already carries its real content, so there it would
       // only repeat a second, generic <h1> under the page.
       for (const node of document.querySelectorAll("body > noscript")) node.remove();
+
+      // The operator's public host is not known at build time. Do not freeze
+      // the temporary localhost origin into generated canonical/share metadata.
+      document.querySelector('link[rel="canonical"]')?.remove();
+      document.querySelector('meta[property="og:url"]')?.remove();
 
       /*
        * `outerHTML` welds adjacent text nodes into one string, so `{note} and

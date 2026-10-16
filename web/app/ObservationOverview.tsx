@@ -10,8 +10,8 @@ import { MotionIcon } from "../components/MotionIcon";
 import { HealthOrbit, type CategoryScores } from "./HealthOrbit";
 import { siteStatus } from "@shared/site-status";
 
-interface Site { id: string; name: string; origin: string; status: string; latestScore: number | null; lastOk: number | null; lastCheckedAt: number | null; uptime24h: number | null; openIncident: boolean; latestCategoryScores?: CategoryScores | null; latestAuditAt?: number | null; latestAuditId?: string | null; previousScore?: number | null; monitorEnabled?: boolean; nextCheckAt?: number | null; monitoringPaused?: boolean }
-interface Audit { id: string; status: string; queued_at: number; completed_at?: number | null; overall_score: number | null; site_name: string | null; origin: string | null }
+interface Site { id: string; name: string; origin: string; status: string; latestScore: number | null; homepageUnavailable?: boolean; lastOk: number | null; lastCheckedAt: number | null; uptime24h: number | null; openIncident: boolean; latestCategoryScores?: CategoryScores | null; latestAuditAt?: number | null; latestAuditId?: string | null; previousScore?: number | null; monitorEnabled?: boolean; nextCheckAt?: number | null; monitoringPaused?: boolean }
+interface Audit { id: string; status: string; queued_at: number; completed_at?: number | null; overall_score: number | null; homepage_unavailable?: number; site_name: string | null; origin: string | null }
 interface Incident { id: string; started_at: number; resolved_at: number | null; reason: string | null; site_name: string; site_id: string }
 interface Attention { findings: { siteId: string; siteName: string; auditId: string; ruleId: string; title: string; severity: "critical" | "high"; occurrences: number; observedAt: number }[]; coverage: { totalSites: number; auditedSites: number }; totalFindings: number; truncated: boolean }
 const ACTIVE = new Set(["queued", "crawling", "browser_analysis", "scoring"]);
@@ -21,6 +21,7 @@ function siteState(s: Site) {
     status: s.status,
     openIncident: s.openIncident,
     monitorEnabled: s.monitorEnabled !== false && !s.monitoringPaused,
+    monitorPaused: s.monitoringPaused,
     lastCheckedAt: s.lastCheckedAt,
     lastOk: s.lastOk,
     nextCheckAt: s.nextCheckAt,
@@ -44,19 +45,25 @@ export default function ObservationOverview() {
   const [offline, setOffline] = useState(!navigator.onLine);
   useEffect(() => { const clock = setInterval(() => { if (!document.hidden) tick((n) => n + 1); }, 30_000); const update = () => setOffline(!navigator.onLine); window.addEventListener("online", update); window.addEventListener("offline", update); return () => { clearInterval(clock); window.removeEventListener("online", update); window.removeEventListener("offline", update); }; }, []);
   const auditSignature = audits.data?.audits.map((a) => `${a.id}:${a.status}`).join("|");
-  const lastSignature = useRef<string>();
+  const lastSignature = useRef<string | undefined>(undefined);
   useEffect(() => { if (auditSignature !== undefined) { if (lastSignature.current !== undefined && lastSignature.current !== auditSignature) { sites.refresh(); attention.refresh(); } lastSignature.current = auditSignature; } }, [auditSignature, sites, attention]);
   const allSites = sites.data?.sites ?? [];
-  const audited = allSites.filter((s) => s.latestScore !== null);
-  const score = mean(audited.map((s) => s.latestScore!));
-  const categorySites = audited.filter((s) => s.latestCategoryScores && Object.values(s.latestCategoryScores).every((value) => typeof value === "number"));
-  const categories = categorySites.length === audited.length && categorySites.length ? Object.fromEntries((["security", "accessibility", "performance", "seo"] as const).map((key) => [key, mean(categorySites.map((s) => s.latestCategoryScores![key]))])) as CategoryScores : null;
+  const auditedSites = allSites.filter((s) => s.latestAuditId != null);
+  const assessedSites = allSites.filter((s) => s.latestScore !== null);
+  const unavailableSites = allSites.filter((s) => s.homepageUnavailable).length;
+  const score = mean(assessedSites.map((s) => s.latestScore!));
+  const categorySites = assessedSites.filter((s) => s.latestCategoryScores && Object.values(s.latestCategoryScores).every((value) => typeof value === "number"));
+  const categories = categorySites.length === assessedSites.length && categorySites.length ? Object.fromEntries((["security", "accessibility", "performance", "seo"] as const).map((key) => [key, mean(categorySites.map((s) => s.latestCategoryScores![key]))])) as CategoryScores : null;
   const openIncidents = incidents.data?.incidents.filter((i) => i.resolved_at === null) ?? [];
   const running = audits.data?.audits.find((a) => ACTIVE.has(a.status));
   const unverified = allSites.find((s) => s.status !== "verified");
-  const monitored = allSites.filter((s) => s.status === "verified" && s.monitorEnabled !== false);
+  const monitored = allSites.filter((s) => s.status === "verified" && s.monitorEnabled !== false && !s.monitoringPaused);
+  const pausedCount = allSites.filter((site) => site.monitoringPaused).length;
+  const monitoringNote = pausedCount
+    ? ` Monitoring is paused for ${pausedCount === 1 ? "one site" : `${pausedCount} sites`} because the current site limit has been reached.`
+    : monitored.length > 0 ? "" : " Monitoring is not switched on yet.";
   const empty = sites.data !== null && allSites.length === 0;
-  const primary = openIncidents.length && openIncidents[0] ? { label: "View incident", to: `/app/incidents#${openIncidents[0].id}` } : running ? { label: "View progress", to: `/app/audits/${running.id}` } : unverified && monitored.length === 0 ? { label: "Verify site", to: "/app/sites" } : { label: audited.length ? "Run audit" : "Run first audit", to: "/app/audits" };
+  const primary = openIncidents.length && openIncidents[0] ? { label: "View incident", to: `/app/incidents#${openIncidents[0].id}` } : running ? { label: "View progress", to: `/app/audits/${running.id}` } : unverified && monitored.length === 0 ? { label: "Verify site", to: "/app/sites" } : { label: auditedSites.length ? "Run audit" : "Run first audit", to: "/app/audits" };
   const refreshing = [sites, audits, incidents, attention].some((s) => s.refreshing && s.data !== null);
   const refresh = () => { sites.refresh(); audits.refresh(); incidents.refresh(); attention.refresh(); };
 
@@ -67,13 +74,16 @@ export default function ObservationOverview() {
     ...(audits.data?.audits.filter((a) => a.status === "failed").slice(0, 1) ?? []).map((a) => ({ id: a.id, title: "Audit couldn't complete", meta: `${a.site_name || a.origin || "Audit"} · ${relativeTime(a.queued_at)}`, level: "Audit", kind: "warn", to: `/app/audits/${a.id}` })),
   ];
   const needsSetup = !items.length && unverified;
-  const needsAttention = (s: Site) => s.openIncident || s.lastOk === 0 || s.status !== "verified";
+  const needsAttention = (s: Site) => {
+    const state = siteState(s);
+    return state.kind === "bad" || state.kind === "warn" || state.text === "Monitoring disabled";
+  };
   const visibleSites = allSites.filter((s) => `${s.name} ${s.origin}`.toLowerCase().includes(query.toLowerCase()) && (filter === "all" || needsAttention(s))).sort((a, b) => sort === "score" ? (a.latestScore ?? 101) - (b.latestScore ?? 101) : sort === "name" ? a.name.localeCompare(b.name) : Number(needsAttention(b)) - Number(needsAttention(a)) || a.name.localeCompare(b.name));
   const pages = Math.max(1, Math.ceil(visibleSites.length / 10));
   const currentPage = Math.min(page, pages - 1);
   const historySite = allSites.find((s) => s.id === selected) ?? allSites[0];
   const activity = [
-    ...(audits.data?.audits ?? []).map((a) => ({ id: `audit-${a.id}`, at: a.completed_at || a.queued_at, label: a.status === "completed" ? "Audit completed" : a.status === "failed" ? "Audit failed" : ACTIVE.has(a.status) ? "Audit in progress" : a.status, site: a.site_name || a.origin || "Audit", value: a.overall_score, to: `/app/audits/${a.id}`, kind: "audit" })),
+    ...(audits.data?.audits ?? []).map((a) => ({ id: `audit-${a.id}`, at: a.completed_at || a.queued_at, label: a.homepage_unavailable === 1 ? "Homepage could not be assessed" : a.status === "completed" ? "Audit completed" : a.status === "failed" ? "Audit failed" : ACTIVE.has(a.status) ? "Audit in progress" : a.status, site: a.site_name || a.origin || "Audit", value: a.overall_score, to: `/app/audits/${a.id}`, kind: "audit" })),
     ...(incidents.data?.incidents ?? []).flatMap((i) => [{ id: `incident-${i.id}`, at: i.started_at, label: "Incident opened", site: i.site_name, value: null, to: `/app/incidents#${i.id}`, kind: "incident" }, ...(i.resolved_at ? [{ id: `recovery-${i.id}`, at: i.resolved_at, label: "Monitoring recovered", site: i.site_name, value: null, to: `/app/incidents#${i.id}`, kind: "recovery" }] : [])]),
   ].sort((a, b) => b.at - a.at).slice(0, 6);
 
@@ -94,7 +104,7 @@ export default function ObservationOverview() {
         <div className="first-site-art" aria-hidden="true"><ZenithMark size={96} /></div>
         <div>
           <h2>A clearer picture of your website starts here.</h2>
-          <p>Add a site to bring its performance, accessibility, security and search health into view. Verify ownership and uptime monitoring starts on its own.</p>
+          <p>Add a site to bring its performance, accessibility, security and search health into view. Verify ownership to enable uptime monitoring.</p>
           <LinkButton to="/app/sites" size="lg"><Plus size={18} /> Add your first site</LinkButton>
           <ul className="first-site-steps">
             <li><Globe aria-hidden="true" /> Add the address of a site you run</li>
@@ -105,8 +115,8 @@ export default function ObservationOverview() {
       </Panel>
     ) : <>
       <div className="cn-grid-2 cn-grid-2--wide-left">
-        <Panel id="health" title="Current health" description="Latest audit scores across every site.">
-          {sites.data ? <HealthOrbit score={score} categories={categories} audited={audited.length} total={allSites.length} /> : sites.unloaded ? <p className="cn-muted">Health is unavailable until sites load.</p> : <Skeleton className="h-52" />}
+        <Panel id="health" title="Current health" description="Latest audit results across every site.">
+          {sites.data ? <HealthOrbit score={score} categories={categories} audited={auditedSites.length} scored={assessedSites.length} total={allSites.length} unavailable={unavailableSites} /> : sites.unloaded ? <p className="cn-muted">Health is unavailable until sites load.</p> : <Skeleton className="h-52" />}
         </Panel>
         <Panel id="attention" title="Needs attention" description="Incidents and serious findings, most urgent first.">
           <Retry state={incidents} label="Incidents" />
@@ -130,7 +140,7 @@ export default function ObservationOverview() {
           ) : !incidents.data || !attention.data ? (
             <p className="cn-muted">{incidents.unloaded || attention.unloaded ? "Some observations are unavailable. Review the loaded sites below." : "Checking the latest observations."}</p>
           ) : (
-            <div className="attention-clear"><Check /><h3>Nothing needs attention</h3><p>{audited.length ? "No active incidents, and no critical or high findings in the latest audits." : "No active incidents. Run an audit to see what could improve."}{monitored.length === 0 ? " Monitoring is not switched on yet." : ""}</p></div>
+            <div className="attention-clear"><Check /><h3>{pausedCount ? `Monitoring paused for ${pausedCount === 1 ? "one site" : `${pausedCount} sites`}` : "Nothing needs attention"}</h3><p>{auditedSites.length ? "No active incidents, and no critical or high findings in the latest audits." : "No active incidents. Run an audit to see what could improve."}{monitoringNote}</p></div>
           )}
         </Panel>
       </div>
@@ -164,7 +174,7 @@ export default function ObservationOverview() {
                     {s.monitoringPaused && <small className="cn-muted site-item__badges"><Chip tone="warn">Monitoring paused</Chip></small>}
                   </span>
                 </span>
-                <span>{s.latestScore !== null ? <span className="cn-score" style={{ color: scoreColor(s.latestScore) }}>{s.latestScore}{s.previousScore != null && s.latestScore !== s.previousScore && <small className={s.latestScore > s.previousScore ? "signal-good" : "signal-bad"}>{s.latestScore > s.previousScore ? "+" : ""}{s.latestScore - s.previousScore}</small>}</span> : <span className="cn-score cn-score--none">Not audited</span>}</span>
+                <span>{s.homepageUnavailable ? <span className="cn-score cn-score--none" aria-label="Homepage could not be assessed, score 0">0 · Homepage could not be assessed</span> : s.latestScore !== null ? <span className="cn-score" style={{ color: scoreColor(s.latestScore) }}>{s.latestScore}{s.previousScore != null && s.latestScore !== s.previousScore && <small className={s.latestScore > s.previousScore ? "signal-good" : "signal-bad"}>{s.latestScore > s.previousScore ? "+" : ""}{s.latestScore - s.previousScore}</small>}</span> : <span className="cn-score cn-score--none">{s.latestAuditId ? "Not assessed" : "Not audited"}</span>}</span>
                 <span className={`ov-site-status signal-${status.kind}`}><i aria-hidden="true" />{status.text}</span>
                 <span className="cn-value"><span className="cn-cell-label">24h uptime </span>{s.lastCheckedAt && s.uptime24h !== null ? `${s.uptime24h}%` : <span className="cn-muted">No checks</span>}</span>
                 <span className="cn-value cn-muted cn-col-checked">{s.lastCheckedAt ? relativeTime(s.lastCheckedAt) : "Never"}</span>
@@ -204,10 +214,11 @@ export default function ObservationOverview() {
 }
 
 function History({ site }: { site: Site }) {
-  const state = useDashboardData<{ recentAudits: { id: string; queued_at: number; overall_score: number | null; status: string }[] }>(`/api/sites/${site.id}/detail`);
+  const state = useDashboardData<{ recentAudits: { id: string; queued_at: number; overall_score: number | null; homepage_unavailable?: number; status: string }[] }>(`/api/sites/${site.id}/detail`);
   const [days, setDays] = useState(30);
   const [selected, setSelected] = useState<string | null>(null);
-  const points = (state.data?.recentAudits ?? []).filter((a) => a.status === "completed" && a.overall_score !== null && a.queued_at >= Date.now() - days * 86400_000).sort((a, b) => a.queued_at - b.queued_at);
+  const completedAudits = (state.data?.recentAudits ?? []).filter((a) => a.status === "completed" && a.queued_at >= Date.now() - days * 86400_000);
+  const points = completedAudits.filter((a) => a.overall_score !== null).sort((a, b) => a.queued_at - b.queued_at);
   const start = points[0]?.queued_at ?? 0;
   const end = points.at(-1)?.queued_at ?? start;
   const x = (time: number) => (points.length === 1 ? 300 : 40 + ((time - start) / Math.max(end - start, 1)) * 540);
@@ -223,10 +234,10 @@ function History({ site }: { site: Site }) {
     </div>
     <Retry state={state} label="History" />
     {!state.data ? state.unloaded ? <p className="cn-muted">Audit history is unavailable.</p> : <Skeleton className="h-48" /> : !points.length ? (
-      <div className="console-history-empty"><ScanLine size={24} /><p>No completed audits in this window.</p><Link className="cn-link" to={`/app/sites/${site.id}`}>Open site <ArrowRight size={15} /></Link></div>
+      <div className="console-history-empty"><ScanLine size={24} /><p>{completedAudits.length ? "Completed audits in this window did not assess site pages, so there are no scores to chart." : "No completed audits in this window."}</p><Link className="cn-link" to={`/app/sites/${site.id}`}>Open site <ArrowRight size={15} /></Link></div>
     ) : <>
       <div className="console-chart-readout">
-        <strong>{focus?.overall_score}<small>/ 100</small></strong>
+        <strong>{focus?.homepage_unavailable === 1 ? <>0<small>/ 100 · Homepage could not be assessed</small></> : <>{focus?.overall_score}<small>/ 100</small></>}</strong>
         <span>{focus && new Date(focus.queued_at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{change !== null && <small className={change > 0 ? "signal-good" : change < 0 ? "signal-bad" : "cn-muted"}>{change > 0 ? "+" : ""}{change} from the previous audit</small>}</span>
       </div>
       <svg className="console-history-chart" viewBox="0 0 600 196" aria-label={`Audit scores for ${site.name}. A data table follows.`}>
@@ -239,11 +250,11 @@ function History({ site }: { site: Site }) {
         </>}
         {points.length > 1 && <path className="history-area" d={`${line} L${x(end)},${y(0)} L${x(start)},${y(0)} Z`} />}
         {points.length > 1 && <path key={`${site.id}-${days}-${points.map((p) => p.id).join()}`} className="history-line" pathLength="100" d={line} />}
-        {points.map((p) => <circle key={p.id} className={`history-point${focus?.id === p.id ? " is-selected" : ""}`} cx={x(p.queued_at)} cy={y(p.overall_score!)} r={focus?.id === p.id ? 6 : 4} tabIndex={0} role="img" aria-label={`${new Date(p.queued_at).toLocaleString()}: score ${p.overall_score}`} onFocus={() => setSelected(p.id)} onMouseEnter={() => setSelected(p.id)}><title>{new Date(p.queued_at).toLocaleString()}: {p.overall_score}</title></circle>)}
+        {points.map((p) => <circle key={p.id} className={`history-point${focus?.id === p.id ? " is-selected" : ""}`} cx={x(p.queued_at)} cy={y(p.overall_score!)} r={focus?.id === p.id ? 6 : 4} tabIndex={0} role="img" aria-label={`${new Date(p.queued_at).toLocaleString()}: ${p.homepage_unavailable === 1 ? "homepage could not be assessed, score 0" : `score ${p.overall_score}`}`} onFocus={() => setSelected(p.id)} onMouseEnter={() => setSelected(p.id)}><title>{new Date(p.queued_at).toLocaleString()}: {p.homepage_unavailable === 1 ? "Homepage could not be assessed · 0/100" : p.overall_score}</title></circle>)}
         <text x="40" y="192">{new Date(start).toLocaleDateString()}</text>
         <text x="580" y="192" textAnchor="end">{points.length > 1 ? new Date(end).toLocaleDateString() : "One audit"}</text>
       </svg>
-      <details className="console-chart-data"><summary>View data <span>Latest {state.data.recentAudits.length} audits for this site</span></summary><table><caption className="sr-only">Audit scores for {site.name}</caption><thead><tr><th>Audit date</th><th>Score</th></tr></thead><tbody>{points.map((p) => <tr key={p.id}><td><Link to={`/app/audits/${p.id}`}>{new Date(p.queued_at).toLocaleString()}</Link></td><td>{p.overall_score}</td></tr>)}</tbody></table></details>
+      <details className="console-chart-data"><summary>View data <span>Latest {state.data.recentAudits.length} audits for this site</span></summary><table><caption className="sr-only">Audit scores for {site.name}</caption><thead><tr><th>Audit date</th><th>Score</th></tr></thead><tbody>{points.map((p) => <tr key={p.id}><td><Link to={`/app/audits/${p.id}`}>{new Date(p.queued_at).toLocaleString()}</Link></td><td>{p.homepage_unavailable === 1 ? "0 · Homepage could not be assessed" : p.overall_score}</td></tr>)}</tbody></table></details>
     </>}
   </>;
 }

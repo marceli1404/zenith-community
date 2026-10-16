@@ -15,14 +15,17 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck · Lint · Test · Build
+    name: Typecheck · Lint · Unit · E2E · Build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - run: npm ci
@@ -36,8 +39,26 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-      - name: Install Chromium (prerender)
+      - name: Install Chromium (prerender and E2E)
         run: npx playwright install --with-deps chromium
 
       - name: Build
         run: npm run build
+
+      - name: Apply local D1 migrations
+        run: npx wrangler d1 migrations apply zenith-community-db --local --config dist/zenith_community_app/wrangler.json
+
+      - name: End-to-end tests (production Worker preview)
+        run: |
+          npx wrangler dev --local --config dist/zenith_community_app/wrangler.json --ip 127.0.0.1 --port 4173 > /tmp/zenith-worker-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
+              PREVIEW_URL=http://127.0.0.1:4173 npm run test:e2e:preview
+              exit $?
+            fi
+            sleep 1
+          done
+          cat /tmp/zenith-worker-preview.log
+          exit 1

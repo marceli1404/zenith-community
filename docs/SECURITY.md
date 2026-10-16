@@ -10,13 +10,13 @@ Zenith Community makes outbound requests to the public websites an operator or a
 - Restrict access to the Cloudflare account, review logs, and set data retention appropriate to your users.
 - Enable Turnstile for public scans and configure an email provider before enabling email verification or notifications.
 
-The crawler validates public targets and redirect destinations to reduce server-side request forgery risk. These controls reduce risk but cannot make arbitrary user-supplied URLs risk-free. Do not expose an instance to untrusted users without reviewing its configuration and network behavior.
+The crawler and browser checks validate public targets and redirect destinations to reduce server-side request forgery risk. IP-literal URLs are rejected; use a public hostname. Browser requests using methods other than GET or HEAD and known state-changing paths are blocked. A target may still cause side effects through a GET route or page script. Workers fetch does not expose the resolved DNS address, so a hostname that changes from a public address to a private one between validation and connection cannot be fully ruled out here. These controls reduce risk but cannot make arbitrary user-supplied URLs risk-free. Do not expose an instance to untrusted users without reviewing its configuration and network behavior.
 
 ## Reporting a vulnerability
 
 For an issue affecting one installation, contact that installation's operator.
-For a vulnerability in the Community source, do not post exploit details
-publicly. Use GitHub's private vulnerability reporting feature for this
-repository when it is available. Before the first public release, repository
-maintainers must enable that feature or add another private contact method
-here. Do not include credentials or personal data in an initial report.
+For a vulnerability in the Community source, use GitHub's private
+vulnerability reporting feature when it is enabled. If private reporting is
+unavailable, do not post exploit details publicly; maintainers must enable
+private reporting or add a private contact method here before requesting
+reports. Do not include credentials or personal data in an initial report.

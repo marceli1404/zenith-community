@@ -1,7 +1,7 @@
 /**
- * Dashboard capture for the precision-polish pass.
+ * Isolated dashboard fixture capture for visual review.
  *
- *   npm run dashboard:after
+ *   npm run dashboard-review:after
  *
  * The dashboard is behind authentication and this machine has no local account,
  * no OAuth secrets and no seeded D1 data. Rather than mutate a real account for
@@ -9,7 +9,7 @@
  * defined in this file and injected with Playwright request interception. No
  * production data is read or written, and no real session is created.
  *
- * Fixtures cover the states PRECISION_POLISH.md asks for: no sites, one site,
+ * Fixtures cover no sites, one site,
  * many sites, healthy vs incident, an audit that is running vs completed, and a
  * refresh that is slow or that fails. Each fixture name is written into the
  * capture's JSON so no screenshot can be mistaken for production.
@@ -24,12 +24,12 @@ import AxeBuilder from "@axe-core/playwright";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LABEL = process.argv[2] ?? "after";
 const BASE = process.env.DASH_BASE_URL ?? "http://localhost:4173";
-const OUT = join(ROOT, "artifacts", "precision-polish", LABEL, "dashboard");
+const OUT = join(ROOT, "artifacts", "dashboard-review", LABEL, "dashboard");
 
-const ME = { user: { id: "fixture-user", email: "fixture@example.test" }, plan: "pro" };
+const ME = { user: { id: "fixture-user", email: "fixture@example.test" }, plan: "community" };
 const CONFIG = {
-  appName: "Zenith", turnstileSiteKey: "0x4AAAAAAEuCHVcKT3sNuMg7", environment: "production",
-  authProviders: { google: true, github: true }, emailEnabled: true,
+  appName: "Zenith Community", turnstileSiteKey: "", environment: "development",
+  authProviders: { google: false, github: false }, emailEnabled: false,
 };
 
 // Milliseconds. The API stores and returns ms (src/routes/dashboard.ts uses

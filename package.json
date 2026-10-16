@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build && node scripts/prerender.mjs",
+    "build:production": "node scripts/prepare-production-config.mjs && vite build --config vite.production.config.ts && node scripts/prerender.mjs",
     "prerender": "node scripts/prerender.mjs",
     "preview": "vite preview",
     "lint": "eslint . --max-warnings=0",
@@ -15,18 +16,18 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "db:migrate:local": "wrangler d1 migrations apply zenith-community --local",
-    "db:migrate:remote": "wrangler d1 migrations apply zenith-community --remote",
+    "db:migrate:local": "wrangler d1 migrations apply zenith-community-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply zenith-community-db --remote",
     "cf:typegen": "wrangler types --env-interface CloudflareBindings ./src/worker-configuration.d.ts",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "npm run build:production && wrangler deploy",
     "visual:review": "node scripts/visual-review.mjs",
     "perf:before": "node scripts/perf-measure.mjs before",
     "perf:after": "node scripts/perf-measure.mjs after",
-    "polish:before": "node scripts/polish-capture.mjs before",
-    "polish:after": "node scripts/polish-capture.mjs after",
-    "polish:diff": "node scripts/polish-diff.mjs",
-    "dashboard:before": "node scripts/dashboard-capture.mjs before",
-    "dashboard:after": "node scripts/dashboard-capture.mjs after",
+    "login-review:before": "node scripts/polish-capture.mjs before",
+    "login-review:after": "node scripts/polish-capture.mjs after",
+    "login-review:diff": "node scripts/polish-diff.mjs",
+    "dashboard-review:before": "node scripts/dashboard-capture.mjs before",
+    "dashboard-review:after": "node scripts/dashboard-capture.mjs after",
     "dev:smoke": "node scripts/dev-smoke.mjs",
     "preview:smoke": "node scripts/dev-smoke.mjs http://localhost:4173",
     "test:e2e:preview": "playwright test --config=playwright.preview.config.ts"
@@ -40,12 +41,11 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.2",
-    "recharts": "^2.15.2",
     "zod": "^3.24.3"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
-    "@cloudflare/vite-plugin": "^1.0.12",
+    "@cloudflare/vite-plugin": "^1.7.0",
     "@cloudflare/workers-types": "^5.20260908.0",
     "@eslint/js": "^9.25.0",
     "@playwright/test": "^1.52.0",
@@ -64,12 +64,13 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.2",
     "vitest": "^4.1.11",
-    "wrangler": "^4.12.0"
+    "wrangler": "^4.20.0"
   },
   "overrides": {
-    "basic-ftp": "6.2.1"
+    "basic-ftp": "6.2.1",
+    "@puppeteer/browsers": "3.2.5"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.20.0 || ^24.12.0"
   }
 }

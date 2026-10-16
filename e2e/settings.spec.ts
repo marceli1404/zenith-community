@@ -41,9 +41,9 @@ test("profile and notification updates send Community settings payloads", async 
   await mockSettings(page, (route) => mutations.push({ path: new URL(route.request().url()).pathname, body: route.request().postDataJSON() }));
   await page.goto("/app/settings");
 
-  await page.getByLabel("Name").fill("Marceli P");
+  await page.getByLabel("Name").fill("Community Tester");
   await page.getByRole("button", { name: "Save name" }).click();
-  await expect.poll(() => mutations).toContainEqual({ path: "/api/account/settings/profile", body: { name: "Marceli P" } });
+  await expect.poll(() => mutations).toContainEqual({ path: "/api/account/settings/profile", body: { name: "Community Tester" } });
 
   await page.getByLabel("Downtime alerts").uncheck();
   await expect.poll(() => mutations).toContainEqual({ path: "/api/account/settings/notifications", body: { downtime: false, recovery: true, auditFinished: true } });

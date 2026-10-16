@@ -1,14 +1,22 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "zenith-community",
+  "name": "zenith-community-app",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-14",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*",
+      "/app*",
+      "/login*",
+      "/signup*",
+      "/forgot-password*",
+      "/reset-password*",
+      "/verify-email*",
+      "/status*"
+    ]
   },
   "browser": {
     "binding": "BROWSER"
@@ -16,31 +24,32 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "zenith-community"
+      "database_name": "zenith-community-db"
     }
   ],
   "r2_buckets": [
     {
       "binding": "REPORTS_BUCKET",
-      "bucket_name": "zenith-community-reports"
+      "bucket_name": "zenith-community-app-reports"
     }
   ],
   "queues": {
     "producers": [
-      { "binding": "MONITOR_QUEUE", "queue": "zenith-monitor" },
-      { "binding": "AUDIT_QUEUE", "queue": "zenith-audit" },
-      { "binding": "EMAIL_QUEUE", "queue": "zenith-email" }
+      { "binding": "MONITOR_QUEUE", "queue": "zenith-community-monitor" },
+      { "binding": "AUDIT_QUEUE", "queue": "zenith-community-audit" },
+      { "binding": "EMAIL_QUEUE", "queue": "zenith-community-email" }
     ],
     "consumers": [
-      { "queue": "zenith-monitor", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 },
-      { "queue": "zenith-audit", "max_batch_size": 5, "max_batch_timeout": 5, "max_retries": 3 },
-      { "queue": "zenith-email", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
+      { "queue": "zenith-community-monitor", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 },
+      { "queue": "zenith-community-audit", "max_batch_size": 5, "max_batch_timeout": 5, "max_retries": 3 },
+      { "queue": "zenith-community-email", "max_batch_size": 10, "max_batch_timeout": 5, "max_retries": 3 }
     ]
   },
   "ratelimits": [
     {
       "name": "PUBLIC_SCAN_LIMITER",
-      "namespace_id": "1001",
+      // Starter value; choose a unique positive integer in your account before deployment.
+      "namespace_id": "987654321",
       "simple": { "limit": 5, "period": 60 }
     }
   ],

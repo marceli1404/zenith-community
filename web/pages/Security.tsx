@@ -20,17 +20,19 @@ const SECTIONS: Array<{ id: string; title: string; body: string[] }> = [
     id: "scan",
     title: "What a scan actually does",
     body: [
-      "The scanner uses GET requests to read public page content and HEAD requests to check redirects and links.",
-      "It does not submit forms, log in, modify site content, or attempt exploits. It reads response headers and HTML; browser rendering is used for audit checks that require it.",
-      "Full audits respect robots.txt, stay on your own origin, and are bounded in pages, depth and response size.",
+      "The scanner uses GET requests to read public page content and HEAD requests for some redirect and link checks. If a server rejects HEAD as unsupported, the check retries with GET. Browser checks also load page resources.",
+      "Browser requests using methods other than GET or HEAD are blocked, and known state-changing paths such as sign-out and deletion routes are skipped. Scans do not log in or attempt exploits, but a target can still cause side effects through a GET route or page script.",
+      "Page discovery stays on the submitted origin and applies matching Allow and Disallow patterns from robots.txt. The same rules are checked before the browser loads a page or resource, including after redirects. Requests are blocked when a host's robots.txt cannot be read because of a server or network error. Redirects and browser resources are also checked as public targets and may use another public host. Page count, depth and response size are bounded.",
     ],
   },
   {
     id: "private-infrastructure",
-    title: "We cannot be pointed at private infrastructure",
+    title: "We block known private network targets",
     body: [
-      "URLs and redirect destinations are validated before requests are made. Loopback, private, link-local and other reserved network ranges are rejected.",
-      "Only http and https on standard ports are allowed, URLs containing credentials are rejected, and each redirect hop is validated before the next request.",
+      "URLs and redirect destinations are validated before requests. Loopback, private, link-local and other reserved network ranges are rejected.",
+      "DNS rebinding cannot be fully ruled out. Cloudflare Workers do not expose the address used for the connection.",
+      "Enter a public hostname rather than an IP address. This scanner rejects URLs written with an IP address.",
+      "Only HTTP and HTTPS on standard ports are allowed. URLs with embedded credentials are rejected. Each redirect hop is validated before the next request.",
     ],
   },
   {

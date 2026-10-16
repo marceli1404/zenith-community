@@ -9,15 +9,22 @@ import { validatePublicTarget } from "@shared/ssrf";
 import { normalizeOrigin } from "@shared/url";
 import { getAuditPriority } from "@shared/entitlements";
 import { groupFindings, type Finding } from "@shared/findings";
-import { computeScores } from "@shared/scoring";
+import { displayOverallScoreSql, isOverallScoreAssessed, scoreFromSnapshot } from "@shared/scoring";
+import { parseEvidenceJson } from "@shared/reliability";
 
 const audits = new Hono<AppEnv>();
 audits.use("*", requireAuth);
+const MAX_AUDITS_PER_MINUTE = 5;
+const AUDIT_RATE_WINDOW_MS = 60_000;
 
 audits.get("/", async (c) => {
   const rows = await all(
     c.env.DB,
-    `SELECT aj.id, aj.status, aj.queued_at, aj.completed_at, ar.id AS result_id, ar.overall_score,
+    `SELECT aj.id, aj.status, aj.queued_at, aj.completed_at, ar.id AS result_id, ${displayOverallScoreSql("ar")} AS overall_score,
+            CASE WHEN EXISTS (
+              SELECT 1 FROM findings f
+              WHERE f.audit_result_id = ar.id AND f.rule_id = 'reliability.homepage-unavailable'
+            ) THEN 1 ELSE 0 END AS homepage_unavailable,
             s.name AS site_name, s.normalized_origin AS origin
      FROM audit_jobs aj LEFT JOIN audit_results ar ON ar.audit_job_id = aj.id
      LEFT JOIN sites s ON s.id = aj.site_id
@@ -48,13 +55,38 @@ audits.post("/", async (c) => {
   }
 
   const jobId = newId("aud");
-  await run(
+  const queuedAt = now();
+  const queued = await run(
     c.env.DB,
     `INSERT INTO audit_jobs (id, user_id, site_id, target_origin, status, priority, queued_at)
-     VALUES (?, ?, ?, ?, 'queued', ?, ?)`,
-    jobId, userId, siteId, origin, getAuditPriority(c.get("plan")), now(),
+     SELECT ?, ?, ?, ?, 'queued', ?, ?
+     WHERE (SELECT COUNT(*) FROM audit_jobs WHERE user_id = ? AND queued_at > ?) < ?`,
+    jobId, userId, siteId, origin, getAuditPriority(c.get("plan")), queuedAt,
+    userId, queuedAt - AUDIT_RATE_WINDOW_MS, MAX_AUDITS_PER_MINUTE,
   );
-  await c.env.AUDIT_QUEUE.send({ type: "audit", auditJobId: jobId });
+  if ((queued.meta?.changes ?? 0) === 0) {
+    c.header("Retry-After", "60");
+    return c.json({ error: "You've requested several audits recently. Please wait a minute and try again.", code: "audit_rate_limited" }, 429);
+  }
+  try {
+    await c.env.AUDIT_QUEUE.send({ type: "audit", auditJobId: jobId });
+  } catch {
+    try {
+      await run(
+        c.env.DB,
+        `UPDATE audit_jobs SET status = 'failed', error_code = ?, failed_at = ? WHERE id = ? AND status = 'queued'`,
+        "queue_dispatch_failed", now(), jobId,
+      );
+    } catch {
+      // Keep the request failure clear even if D1 is also unavailable. The
+      // conditional status update avoids overwriting a job already picked up.
+      console.error("Could not persist audit queue dispatch failure.");
+    }
+    return c.json({
+      error: "The audit could not be queued. Please try again.",
+      code: "queue_unavailable",
+    }, 503);
+  }
   return c.json({ ok: true, auditJobId: jobId, target: origin }, 202);
 });
 
@@ -67,7 +99,8 @@ audits.get("/:id", async (c) => {
   if (!job || job.user_id !== userId) return c.json({ error: "Not found." }, 404);
   const result = await first<{
     id: string; overall_score: number; performance_score: number; accessibility_score: number;
-    seo_score: number; security_score: number; page_count: number; broken_link_count: number; site_id: string | null;
+    seo_score: number; security_score: number; categories_assessed: number; reliability_deduction: number | null;
+    page_count: number; broken_link_count: number; site_id: string | null;
   }>(c.env.DB, `SELECT * FROM audit_results WHERE audit_job_id = ?`, job.id);
   if (!result) return c.json({ job, result: null });
 
@@ -77,11 +110,21 @@ audits.get("/:id", async (c) => {
   }>(c.env.DB, `SELECT * FROM findings WHERE audit_result_id = ?`, result.id);
   const findings: Finding[] = rows.map((row) => ({
     ruleId: row.rule_id, category: row.category, severity: row.severity, title: row.title,
-    description: row.description, pageUrl: row.page_url ?? "", evidence: safeParse(row.evidence_json),
+    description: row.description, pageUrl: row.page_url ?? "", evidence: parseEvidenceJson(row.evidence_json),
     recommendation: row.recommendation,
   }));
   const grouped = groupFindings(findings);
-  const scores = computeScores(grouped);
+  const scores = scoreFromSnapshot({
+    overall: result.overall_score,
+    homepageUnavailable: grouped.some((finding) => finding.ruleId === "reliability.homepage-unavailable"),
+    security: result.security_score,
+    accessibility: result.accessibility_score,
+    performance: result.performance_score,
+    seo: result.seo_score,
+    categoriesAssessed: result.categories_assessed !== 0 && !grouped.some((finding) => finding.ruleId === "reliability.homepage-unavailable"),
+    overallAssessed: isOverallScoreAssessed(result.categories_assessed !== 0, grouped),
+    reliabilityDeduction: result.reliability_deduction,
+  });
   return c.json({
     job,
     result: {
@@ -93,14 +136,5 @@ audits.get("/:id", async (c) => {
     findings: grouped,
   });
 });
-
-function safeParse(value: string): Record<string, unknown> {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : {};
-  } catch { return {}; }
-}
 
 export default audits;

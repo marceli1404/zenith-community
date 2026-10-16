@@ -1,9 +1,10 @@
 /**
  * Transparent, deterministic scoring. Documented for users so scores never look
- * like a black box (§30). Each scored category starts at 100 and loses points
- * per GROUPED finding (so a repeated issue is penalized once). The overall score
- * is an equal-weighted blend of the four scored categories. Reliability is
- * computed from monitoring separately and is not part of this blend.
+ * like a black box. Each scored category starts at 100 and loses points
+ * per grouped finding (so repeated page rules are not counted twice). Reliability
+ * findings also reduce the overall score, with repeated failures charged per
+ * affected URL up to five URLs per rule. A homepage outage makes the audit
+ * unassessable and receives zero.
  */
 
 import {
@@ -30,8 +31,67 @@ export const CATEGORY_WEIGHT: Readonly<Record<ScoredCategory, number>> = {
 };
 
 export interface AuditScore {
+  overall: number | null;
+  categories: Record<ScoredCategory, number | null>;
+  reliabilityDeduction: number | null;
+}
+
+export interface ComputedAuditScore extends Omit<AuditScore, "overall"> {
   overall: number;
-  categories: Record<ScoredCategory, number>;
+}
+
+export const CURRENT_SCORING_VERSION = 2;
+
+export interface StoredScoreSnapshot {
+  overall: number;
+  overallAssessed?: boolean;
+  homepageUnavailable?: boolean;
+  security: number;
+  accessibility: number;
+  performance: number;
+  seo: number;
+  categoriesAssessed: boolean;
+  reliabilityDeduction: number | null;
+}
+
+/** Restore the score saved with an audit instead of recalculating it. */
+export function scoreFromSnapshot(snapshot: StoredScoreSnapshot): AuditScore {
+  return {
+    overall: snapshot.homepageUnavailable ? 0 : snapshot.overallAssessed === false ? null : snapshot.overall,
+    categories: snapshot.categoriesAssessed && !snapshot.homepageUnavailable
+      ? {
+          security: snapshot.security,
+          accessibility: snapshot.accessibility,
+          performance: snapshot.performance,
+          seo: snapshot.seo,
+        }
+      : { security: null, accessibility: null, performance: null, seo: null },
+    // A homepage outage is a measured zero-score outcome, not an unknown
+    // reliability impact. Normalize legacy snapshots that stored NULL here.
+    reliabilityDeduction: snapshot.homepageUnavailable ? 0 : snapshot.reliabilityDeduction,
+  };
+}
+
+/**
+ * A saved zero can mean either a measured homepage outage or an audit that was
+ * never allowed to assess pages. The homepage finding makes the former a real
+ * score; other category-unassessed snapshots have no overall score.
+ */
+export function isOverallScoreAssessed(
+  categoriesAssessed: boolean,
+  findings: readonly Pick<GroupedFinding, "ruleId">[],
+): boolean {
+  return categoriesAssessed || findings.some((finding) => finding.ruleId === "reliability.homepage-unavailable");
+}
+
+/** SQL expression used by summary queries to keep unassessed sentinels out of score displays and averages. */
+export function displayOverallScoreSql(alias: string): string {
+  if (!/^[a-z][a-z0-9_]*$/i.test(alias)) throw new Error("Invalid audit-result SQL alias.");
+  return `CASE WHEN EXISTS (
+    SELECT 1 FROM findings score_finding
+    WHERE score_finding.audit_result_id = ${alias}.id
+      AND score_finding.rule_id = 'reliability.homepage-unavailable'
+  ) THEN 0 WHEN COALESCE(${alias}.categories_assessed, 0) <> 0 THEN ${alias}.overall_score ELSE NULL END`;
 }
 
 function clamp(n: number): number {
@@ -48,39 +108,43 @@ export function scoreCategory(grouped: readonly GroupedFinding[]): number {
 }
 
 /**
- * Compute category and overall scores from grouped findings. Pass grouped
- * findings (post-dedup) so repeated issues are not double-counted. A failed
- * homepage request is an explicit zero for the overall score; observed category
- * scores remain available to explain what could still be checked.
+ * Compute category and overall scores from grouped findings. Reliability issues
+ * reduce the blended score, with up to five URL-based deductions per rule. A
+ * homepage failure makes all four categories unassessed.
  */
 export function computeScores(
   grouped: readonly GroupedFinding[],
   options: { siteAvailable?: boolean } = {},
-): AuditScore {
-  const categories = {} as Record<ScoredCategory, number>;
+): ComputedAuditScore {
+  const categories = {} as Record<ScoredCategory, number | null>;
   for (const cat of SCORED_CATEGORIES) {
     const forCat = grouped.filter((g) => g.category === cat);
     categories[cat] = scoreCategory(forCat);
   }
 
   if (options.siteAvailable === false || grouped.some((g) => g.ruleId === "reliability.homepage-unavailable")) {
-    return { overall: 0, categories };
+    for (const cat of SCORED_CATEGORIES) categories[cat] = null;
+    return { overall: 0, categories, reliabilityDeduction: 0 };
   }
 
   let overall = 0;
   for (const cat of SCORED_CATEGORIES) {
-    overall += categories[cat] * CATEGORY_WEIGHT[cat];
+    overall += (categories[cat] ?? 0) * CATEGORY_WEIGHT[cat];
   }
 
-  return { overall: clamp(overall), categories };
+  const reliabilityDeduction = Math.min(100, grouped
+    .filter((g) => g.category === "reliability")
+    .reduce((sum, g) => sum + SEVERITY_DEDUCTION[g.severity] * Math.min(Math.max(g.affectedUrls.length, 1), 5), 0));
+
+  return { overall: clamp(overall - reliabilityDeduction), categories, reliabilityDeduction };
 }
 
 /**
  * Monitoring reliability score for a site: the uptime percentage over the
  * window, expressed 0–100. Kept separate from the audit score by design.
  */
-export function reliabilityScore(okChecks: number, totalChecks: number): number {
-  if (totalChecks <= 0) return 100;
+export function reliabilityScore(okChecks: number, totalChecks: number): number | null {
+  if (totalChecks <= 0) return null;
   return clamp((okChecks / totalChecks) * 100);
 }
 

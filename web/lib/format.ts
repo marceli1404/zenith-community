@@ -26,8 +26,7 @@ export function scoreColor(score: number): string {
 /** Human rating label for an Zenith Score, so a number always has context. */
 export function scoreLabel(score: number): string {
   if (score >= 90) return "Excellent";
-  if (score >= 75) return "Good";
-  if (score >= 60) return "Fair";
+  if (score >= 70) return "Fair";
   if (score >= 40) return "Needs attention";
   return "Poor";
 }

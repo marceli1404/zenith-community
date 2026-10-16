@@ -1,12 +1,5 @@
 import { useEffect } from "react";
 
-/** Canonical host. The product/marketing pages return 200 only on the Zenith
- *  origin — the primary domain serves the Labs page at "/" and 308-redirects
- *  every product path here — so the canonical must point at Zenith, not the
- *  redirecting/parent host. Matches the sitemap and the static canonical/OG in
- *  index.html. */
-const CANONICAL_BASE = "https://zenith.me.uk";
-
 /** Set the document title, meta description and per-route canonical URL for SEO
  *  and JS-executing crawlers. Runs during prerender too, so the static HTML for
  *  each route carries the right tags. Restores base values on unmount. */
@@ -26,13 +19,19 @@ export function useTitle(title: string, description?: string): void {
     // Per-route canonical. Without this every prerendered page inherits the
     // homepage canonical and reads as a duplicate of "/".
     const path = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
-    const url = path === "/" ? `${CANONICAL_BASE}/` : `${CANONICAL_BASE}${path}`;
-    const canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) {
-      const prevHref = canonical.getAttribute("href");
-      canonical.setAttribute("href", url);
-      restorers.push(() => { if (prevHref !== null) canonical.setAttribute("href", prevHref); });
+    const url = new URL(path, window.location.origin).toString();
+    const existingCanonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    const canonical = existingCanonical ?? document.createElement("link");
+    const previousCanonical = canonical.getAttribute("href");
+    if (!existingCanonical) {
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
     }
+    canonical.href = url;
+    restorers.push(() => {
+      if (previousCanonical !== null) canonical.href = previousCanonical;
+      else canonical.remove();
+    });
 
     // Per-route social metadata. The static index.html carries homepage OG/Twitter
     // tags; without syncing them here every inner page would share as the homepage
@@ -51,7 +50,18 @@ export function useTitle(title: string, description?: string): void {
     }
     setMeta('meta[property="og:description"]', description ?? null);
     setMeta('meta[name="twitter:description"]', description ?? null);
-    setMeta('meta[property="og:url"]', url);
+    const existingOgUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
+    const ogUrl = existingOgUrl ?? document.createElement("meta");
+    const previousOgUrl = ogUrl.getAttribute("content");
+    if (!existingOgUrl) {
+      ogUrl.setAttribute("property", "og:url");
+      document.head.appendChild(ogUrl);
+    }
+    ogUrl.content = url;
+    restorers.push(() => {
+      if (previousOgUrl !== null) ogUrl.content = previousOgUrl;
+      else ogUrl.remove();
+    });
 
     return () => {
       document.title = `${base}: website monitoring and audits`;

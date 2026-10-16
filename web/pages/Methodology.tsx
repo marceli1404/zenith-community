@@ -29,12 +29,34 @@ export default function Methodology() {
           <p>
             Four categories are scored independently: Security, Accessibility, Search (SEO) and Performance. Each starts at 100 and
             loses points for each distinct issue found. The overall Zenith Score is the equally weighted average of those four
-            (25% each), rounded and clamped to 0-100.
+            (25% each), then reliability deductions are subtracted from the overall score. The result is rounded and clamped to 0-100.
           </p>
           <p>
-            Reliability findings are normally reported separately because uptime and incidents measure a different thing over a
-            different time window. If the homepage returns an HTTP error or cannot be reached during a scan or audit, the overall Zenith
-            Score is 0/100 and the report records that the site could not be assessed.
+            Reliability findings also reduce the overall score. Repeated linked-page failures are charged per affected URL, up to five
+            URLs for each rule. Browser checks that do not finish are marked unassessed and reduce the overall score.
+          </p>
+          <p>
+            If the crawler cannot retrieve a complete HTML homepage, the overall score is 0/100 and category scores are unassessed.
+            This includes a failed request, an error or partial response, a non-HTML or empty body, or a generic server-error title or
+            page—even when it returns HTTP 200. A matching error heading with diagnostic output also counts as a homepage failure.
+            The same applies if the browser's main-document response fails or is missing, is empty
+            or partial, or renders no visible homepage content. Browser responses of 204 or 205 are empty; 206 is partial. If the
+            crawler and browser receive different homepage responses, the report shows both observations. If browser analysis cannot
+            run at all, its checks stay unassessed and reduce the reliability score. A homepage redirect blocked by robots.txt or
+            crawler safety policy is marked Not assessed. If robots.txt disallows the homepage or cannot be read safely, no site pages
+            are checked and the audit is marked Not assessed.
+          </p>
+          <p>
+            The scanner reads at most 1.5 MB from each page response. If it reaches that limit, it does not calculate a score because
+            the complete page content was not checked. The result identifies the affected page so you can reduce its response size or
+            raise the scan limit in your Community installation.
+          </p>
+          <p>
+            The public Quick Scan reads the homepage HTML without rendering it or checking whether embedded media loaded. An exact
+            generic server-error title or a compact matching page is treated as unavailable, even if it returns HTTP 200. A matching
+            error heading with diagnostic output also signals an unavailable homepage. When a page has
+            no readable text, Quick Scan can recognize some embedded media, such as images, video, audio, and frames, and mark it Not
+            assessed. It does not render the page or detect every way media can appear.
           </p>
         </>
       ),
@@ -44,7 +66,8 @@ export default function Methodology() {
       title: "Severity deductions",
       content: (
         <>
-          <p>Each distinct issue reduces its category score by a fixed amount:</p>
+          <p>Each distinct category issue reduces its category score by a fixed amount. Reliability issues reduce the overall score by the same amount, once per affected URL up to five URLs for each rule:</p>
+          <p>For linked-page HTTP failures, 5xx responses are critical and 4xx responses are high; network failures are medium. A quick scan confirms a linked page with one GET if HEAD returns a non-2xx response other than 429. It also tries GET if HEAD fails with a DNS/network, TLS, or timeout error. It does not retry 429 responses or crawler safety-policy blocks. Submitted URLs and discovered links with action-like paths, such as unsubscribe or logout, are skipped.</p>
           <ul className="lx-deductions" aria-label="Points deducted per issue, by severity">
             {SEVERITIES.map((sev) => (
               <li key={sev}>
@@ -59,17 +82,17 @@ export default function Methodology() {
     },
     {
       id: "grouping",
-      title: "One issue counts once",
+      title: "How repeated findings count",
       content: (
         <>
           <p>
-            Findings are grouped by the rule that produced them before scoring. A single misconfiguration that appears on two
-            hundred pages is one finding with two hundred affected URLs, not two hundred deductions. Without this, large sites
-            would be penalised simply for being large.
+            Findings are grouped by the rule that produced them before scoring. A repeated category issue, such as a missing security
+            header, is one deduction even when it appears on many pages. Reliability failures reduce the overall score per affected URL,
+            up to five URLs for each rule.
           </p>
           <p>
-            Because rule identity is stable, we can also tell you which findings are new, ongoing or resolved compared with your
-            previous audit.
+            Each group lists the affected URLs. Stable rule identities also let us show which findings are new, ongoing or resolved
+            compared with your previous audit.
           </p>
         </>
       ),
@@ -90,11 +113,19 @@ export default function Methodology() {
       id: "crawl",
       title: "Crawl boundaries",
       content: (
-        <p>
-          Audits stay on your own origin, respect robots.txt, and are limited to 250 pages by default, with bounds on crawl depth,
-          concurrency and response size. Audits use GET requests to retrieve pages and skip state-changing paths such as sign-out
-          and admin pages. Browser rendering is used on the homepage while remaining pages are analysed at the HTTP level.
-        </p>
+        <>
+          <p>
+            Page discovery stays on the submitted origin and matches the Allow and Disallow patterns in robots.txt against page paths and queries. The public quick scan checks robots.txt before requesting the homepage; when the file disallows the path or a server/network error prevents it from being read, no score is calculated. A 4xx response is treated as if no robots.txt file exists, so the crawl continues.
+          </p>
+          <p>
+            If the rules disallow the homepage, no site pages are requested. A server or network error while fetching robots.txt prevents requests to that host. Audits are limited to 250 pages by default, with bounds
+          on crawl depth, concurrency and response size. Redirects and browser resources must pass public-target and robots.txt
+          checks and may use another public host. The crawler checks a redirect destination's robots.txt before following it.
+          Requests use GET or HEAD, and known state-changing paths such as sign-out and admin pages
+          are skipped. A target can still cause side effects through a GET route or page script. Browser rendering is used on the homepage;
+          remaining pages are analysed at the HTTP level.
+          </p>
+        </>
       ),
     },
     {
@@ -102,9 +133,10 @@ export default function Methodology() {
       title: "Monitoring",
       content: (
         <p>
-          The Community edition checks each monitored site every 60 seconds by default and records status, response time and errors.
-          An incident opens after two consecutive failed checks and resolves on the next successful one. Notification delivery depends
-          on the operator&rsquo;s email configuration.
+          The Community edition checks each monitored site every 60 seconds by default and records HTTP status, response time and errors.
+          A 2xx response counts as available for uptime monitoring; audits separately require an assessable HTML homepage. An incident
+          opens after two consecutive failed checks and resolves on the next successful one. Notification delivery depends on the
+          operator&rsquo;s email configuration.
         </p>
       ),
     },

@@ -80,7 +80,7 @@ export default function Signup() {
       <SocialButtons from={from} />
       <form onSubmit={submit} className="auth-form">
         {error && <AuthAlert>{error}</AuthAlert>}
-        <AuthField label="Name" htmlFor="signup-name" hint="Optional. Used in your emails.">
+        <AuthField label="Name" htmlFor="signup-name" hint="Optional.">
           <AuthInput id="signup-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
         </AuthField>
         <AuthField label="Email" htmlFor="signup-email">

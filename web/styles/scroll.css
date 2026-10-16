@@ -300,13 +300,10 @@
       animation-timeline: view();
       animation-range: entry 10% entry 90%;
     }
-    :is(.lx-head, .lx-sectionhead, .lx-evidence__head, .lx-faq__head, .lx-compare__copy, .lx-pricing-head) > :not(.lx-heading),
+    :is(.lx-head, .lx-sectionhead, .lx-faq__head, .lx-compare__copy) > :not(.lx-heading),
     .lx-facts__item,
     .lx-do__item,
     .lx-flow__item,
-    .lx-terms__item,
-    .lx-plan,
-    .lx-plans__aside,
     .lx-faq .lx-accordion__item,
     .lx-library__body .lx-accordion__item,
     .lx-library__filters,
@@ -338,7 +335,6 @@
       animation-timeline: auto;
       animation-range: normal;
     }
-    .lx-evidence__item,
     .lx-compare__figure,
     .lx-endcta__inner {
       animation: lx-sd-tilt linear both;
@@ -347,12 +343,12 @@
     }
 
     /* Siblings in the same row enter a beat apart. */
-    :is(.lx-linkindex, .lx-numbered, .lx-intervals, .lx-terms) > :nth-child(3n + 2),
+    :is(.lx-linkindex, .lx-numbered, .lx-intervals) > :nth-child(3n + 2),
     :is(.lx-signal) > :nth-child(4n + 2),
     :is(.lx-contrast, .lx-channels, .lx-specs, .lx-linkindex--two, .lx-numbered--two, .lx-status__stats) > :nth-child(2n) {
       --sd-shift: 12%;
     }
-    :is(.lx-linkindex:not(.lx-linkindex--two), .lx-numbered:not(.lx-numbered--two), .lx-intervals, .lx-terms, .lx-status__stats) > :nth-child(3n),
+    :is(.lx-linkindex:not(.lx-linkindex--two), .lx-numbered:not(.lx-numbered--two), .lx-intervals, .lx-status__stats) > :nth-child(3n),
     :is(.lx-signal) > :nth-child(4n + 3) {
       --sd-shift: 24%;
     }
@@ -367,13 +363,10 @@
     .lx-do__item:nth-child(4) { --sd-shift: 8%; }
     .lx-do__item:nth-child(3),
     .lx-do__item:nth-child(5) { --sd-shift: 16%; }
-    .lx-evidence__item:nth-child(3),
-    .lx-evidence__item:nth-child(5) { --sd-shift: 14%; }
 
     @media (max-width: 899px) {
       .lx-do__item,
-      .lx-evidence__item,
-      :is(.lx-linkindex, .lx-numbered, .lx-intervals, .lx-terms, .lx-signal, .lx-contrast, .lx-channels, .lx-specs, .lx-status__stats) > * {
+      :is(.lx-linkindex, .lx-numbered, .lx-intervals, .lx-signal, .lx-contrast, .lx-channels, .lx-specs, .lx-status__stats) > * {
         --sd-shift: 0%;
       }
     }
@@ -390,22 +383,6 @@
 }
 
 /* ============================================================== Interaction polish */
-
-/* Prices roll when the billing interval changes. */
-.lx-roll {
-  display: inline-block;
-  animation: lx-roll 420ms var(--lx-ease-out);
-}
-@keyframes lx-roll {
-  from {
-    transform: translateY(45%);
-    filter: blur(3px);
-  }
-  to {
-    transform: none;
-    filter: none;
-  }
-}
 
 /* A beam runs under the scan field while a check is in progress. */
 .lx-scan__row {
@@ -445,10 +422,10 @@
 
 /* Cards: a soft light follows the pointer (position set by useSpotlight). */
 @media (hover: hover) and (pointer: fine) {
-  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div) {
+  :is(.lx-bezel, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div) {
     position: relative;
   }
-  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
+  :is(.lx-bezel, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
     content: "";
     position: absolute;
     inset: 0;
@@ -458,26 +435,18 @@
     transition: opacity var(--duration-base) var(--ease);
     pointer-events: none;
   }
-  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div):hover::after {
+  :is(.lx-bezel, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div):hover::after {
     opacity: 1;
-  }
-}
-
-/* Plan action buttons lift slightly on hover. */
-@media (hover: hover) and (pointer: fine) {
-  .lx-plan > .lx-plan__action .lx-button {
-    transition: transform var(--duration-slow) var(--lx-ease-out), border-color var(--duration-base) var(--ease);
   }
 }
 
 /* The theme and reduced motion: everything above settles to still. */
 @media (prefers-reduced-motion: reduce) {
-  .lx-roll,
   .lx-scan__row.is-loading::after {
     animation: none;
   }
   .lx-button--primary::before,
-  :is(.lx-bezel, .lx-evidence__item, .lx-plan, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
+  :is(.lx-bezel, .lx-linkindex__link, .lx-channel, .lx-numbered > li, .lx-specs__row, .lx-contrast > div)::after {
     display: none;
   }
 }

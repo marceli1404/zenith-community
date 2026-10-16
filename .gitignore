@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .wrangler/
+wrangler.production.jsonc
 .dev.vars
 .env
 .env.*
@@ -13,6 +14,9 @@ test-results/
 node_modules/.tmp/
 *.tsbuildinfo
 artifacts/cinematic/
+artifacts/login-review/
+artifacts/dashboard-review/
+artifacts/performance-review/
 # Visual-review screenshots are regenerated on demand — keep only latest locally,
 # never a binary history. The dir itself stays tracked via README + .gitkeep.
 artifacts/visual-review/*.png

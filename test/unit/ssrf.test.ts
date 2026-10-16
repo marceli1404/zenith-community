@@ -89,12 +89,25 @@ describe("classifyIPv6", () => {
     expect(classifyIPv6("::ffff:10.0.0.1")).toBe("private_network");
     expect(classifyIPv6("::ffff:169.254.169.254")).toBe("link_local");
   });
+  it("blocks IPv4-compatible and non-global IPv6 ranges", () => {
+    expect(classifyIPv6("::8.8.8.8")).toBe("ipv6_not_public");
+    expect(classifyIPv6("64:ff9b::7f00:1")).toBe("ipv6_not_public");
+    expect(classifyIPv6("100::1")).toBe("ipv6_not_public");
+    expect(classifyIPv6("5f00::1")).toBe("ipv6_not_public");
+  });
+  it("blocks special-purpose ranges inside global unicast", () => {
+    expect(classifyIPv6("2001:2::1")).toBe("reserved");
+    expect(classifyIPv6("2001:db8::1")).toBe("reserved");
+    expect(classifyIPv6("2002:7f00:1::")).toBe("reserved");
+    expect(classifyIPv6("3fff::1")).toBe("reserved");
+  });
   it("allows a public IPv6", () => {
     expect(classifyIPv6("2606:4700:4700::1111")).toBe("public");
+    expect(classifyIPv6("2001:4860:4860::8888")).toBe("public");
   });
 });
 
-describe("validatePublicTarget — the hard security gate (§80)", () => {
+describe("validatePublicTarget — the hard security gate", () => {
   const blocked = [
     "http://localhost/",
     "http://localhost:80/",
@@ -128,6 +141,11 @@ describe("validatePublicTarget — the hard security gate (§80)", () => {
     "http://service.internal/", // internal suffix
     "not a url",
     "http://[::ffff:192.168.1.1]/",
+    "http://[64:ff9b::7f00:1]/", // NAT64 translation prefix
+    "http://[2001:db8::1]/", // documentation prefix
+    "http://[2002:7f00:1::]/", // 6to4 can embed IPv4 addresses
+    "http://[3fff::1]/", // documentation prefix
+    "http://[::8.8.8.8]/", // deprecated IPv4-compatible form
   ];
   for (const input of blocked) {
     it(`blocks ${input}`, () => expectBlocked(input));
@@ -140,8 +158,6 @@ describe("validatePublicTarget — the hard security gate (§80)", () => {
     "https://example.com:443/path?q=1",
     "http://example.com:80/",
     "https://sub.domain.example.co.uk/page",
-    "https://8.8.8.8/", // public IP literal is allowed
-    "https://[2606:4700:4700::1111]/",
   ];
   for (const input of allowed) {
     it(`allows ${input}`, () => {
@@ -149,4 +165,15 @@ describe("validatePublicTarget — the hard security gate (§80)", () => {
       if (r.ok) expect(r.port === 80 || r.port === 443).toBe(true);
     });
   }
+
+  it("rejects public IP literals with the Cloudflare fetch limitation", () => {
+    for (const input of ["https://8.8.8.8/", "https://[2606:4700:4700::1111]/"]) {
+      const result = validatePublicTarget(input);
+      expect(result).toMatchObject({
+        ok: false,
+        code: "ip_literal_not_supported",
+      });
+      if (!result.ok) expect(result.reason).toContain("Enter the site's hostname instead");
+    }
+  });
 });

@@ -9,6 +9,7 @@ export interface Bindings {
   MONITOR_QUEUE: Queue<MonitorJob>;
   AUDIT_QUEUE: Queue<AuditJob>;
   EMAIL_QUEUE: Queue<EmailJob>;
+  EMAIL?: SendEmail;
   ASSETS: Fetcher;
   PUBLIC_SCAN_LIMITER: RateLimiter;
   API_LIMITER?: RateLimiter;
@@ -26,7 +27,6 @@ export interface Bindings {
   GITHUB_CLIENT_SECRET?: string;
   RESEND_API_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
-  EMAIL?: unknown;
 }
 
 export interface RateLimiter {
@@ -37,6 +37,8 @@ export interface MonitorJob {
   type: "check";
   monitorId: string;
   siteId: string;
+  /** Stable id across queue redelivery; generated when the cron job is enqueued. */
+  checkId?: string;
 }
 
 export interface AuditJob {

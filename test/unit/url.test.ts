@@ -17,10 +17,12 @@ describe("normalizeOrigin", () => {
 });
 
 describe("canonicalizeUrl", () => {
-  it("strips fragments and tracking params, sorts, trims trailing slash", () => {
-    expect(canonicalizeUrl("https://x.com/a/?utm_source=y&b=2&a=1#frag")).toBe(
-      "https://x.com/a?a=1&b=2",
+  it("strips fragments while preserving route and query distinctions", () => {
+    expect(canonicalizeUrl("https://x.com/a/?ref=one&b=2&a=1#frag")).toBe(
+      "https://x.com/a/?ref=one&b=2&a=1",
     );
+    expect(canonicalizeUrl("https://x.com/a")).not.toBe(canonicalizeUrl("https://x.com/a/"));
+    expect(canonicalizeUrl("https://x.com/item?ref=good")).not.toBe(canonicalizeUrl("https://x.com/item?ref=broken"));
   });
   it("resolves relative URLs against a base", () => {
     expect(canonicalizeUrl("/about", "https://x.com/home")).toBe("https://x.com/about");
@@ -41,6 +43,15 @@ describe("isUnsafeCrawlPath", () => {
     expect(isUnsafeCrawlPath("/account/delete")).toBe(true);
     expect(isUnsafeCrawlPath("/cart")).toBe(true);
     expect(isUnsafeCrawlPath("/wp-admin/")).toBe(true);
+    expect(isUnsafeCrawlPath("/unsubscribe?token=abc")).toBe(true);
+    expect(isUnsafeCrawlPath("/account?do=cancel")).toBe(true);
     expect(isUnsafeCrawlPath("/about")).toBe(false);
+  });
+  it("decodes repeated escapes and fails closed on ambiguous paths", () => {
+    expect(isUnsafeCrawlPath("/account%2Fdelete")).toBe(true);
+    expect(isUnsafeCrawlPath("/%252525256cogout")).toBe(true);
+    expect(isUnsafeCrawlPath("/broken%2")).toBe(true);
+    expect(isUnsafeCrawlPath("/about%20us")).toBe(false);
+    expect(isUnsafeCrawlPath("/%2525252525252525252525safe")).toBe(true);
   });
 });

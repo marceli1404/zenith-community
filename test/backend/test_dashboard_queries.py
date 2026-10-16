@@ -16,7 +16,7 @@ class DashboardQueries(unittest.TestCase):
           CREATE TABLE audit_jobs(id TEXT, user_id TEXT);
           CREATE TABLE audit_results(id TEXT, audit_job_id TEXT, site_id TEXT, created_at INTEGER,
             overall_score INTEGER, security_score INTEGER, accessibility_score INTEGER,
-            performance_score INTEGER, seo_score INTEGER);
+            performance_score INTEGER, seo_score INTEGER, categories_assessed INTEGER DEFAULT 1);
           CREATE TABLE findings(audit_result_id TEXT, rule_id TEXT, title TEXT, severity TEXT);
           CREATE TABLE monitors(site_id TEXT, enabled INTEGER, next_check_at INTEGER, last_ok INTEGER, last_checked_at INTEGER);
           CREATE TABLE uptime_checks(site_id TEXT, checked_at INTEGER, ok INTEGER);
@@ -27,7 +27,7 @@ class DashboardQueries(unittest.TestCase):
 
     def result(self, identifier, site, timestamp, user="owner", score=80):
         self.db.execute("INSERT INTO audit_jobs VALUES(?,?)", (identifier, user))
-        self.db.execute("INSERT INTO audit_results VALUES(?,?,?,?,?,?,?,?,?)",
+        self.db.execute("INSERT INTO audit_results(id,audit_job_id,site_id,created_at,overall_score,security_score,accessibility_score,performance_score,seo_score) VALUES(?,?,?,?,?,?,?,?,?)",
                         (identifier, identifier, site, timestamp, score, score-1, score-2, score-3, score-4))
 
     def finding(self, result, rule, severity):
@@ -37,6 +37,17 @@ class DashboardQueries(unittest.TestCase):
         source = (ROOT / "src/routes/dashboard.ts").read_text(encoding="utf-8")
         sql = re.search(r"export const ATTENTION_SQL = `([\s\S]*?)`;", source).group(1)
         return self.db.execute(sql, ("owner",)).fetchall()
+
+    def site_snapshot_sql(self):
+        source = (ROOT / "src/routes/sites.ts").read_text(encoding="utf-8")
+        sql = re.search(r"`(SELECT s\.\*,[\s\S]*?)`", source).group(1)
+        def display_score(alias):
+            return f"""CASE WHEN EXISTS (
+              SELECT 1 FROM findings score_finding
+              WHERE score_finding.audit_result_id = {alias}.id
+                AND score_finding.rule_id = 'reliability.homepage-unavailable'
+            ) THEN 0 ELSE {alias}.overall_score END"""
+        return sql.replace('${displayOverallScoreSql("latest")}', display_score("latest")).replace('${displayOverallScoreSql("ar")}', display_score("ar"))
 
     def test_current_results_ownership_grouping_and_coverage(self):
         self.result("old", "a", 1)
@@ -72,13 +83,17 @@ class DashboardQueries(unittest.TestCase):
     def test_site_snapshot_fields_share_latest_result(self):
         self.result("old", "a", 1, score=70)
         self.result("new", "a", 2, score=90)
-        source = (ROOT / "src/routes/sites.ts").read_text(encoding="utf-8")
-        sql = re.search(r"`(SELECT s\.\*,[\s\S]*?)`", source).group(1)
-        rows = self.db.execute(sql, (0, 0, "owner")).fetchall()
+        rows = self.db.execute(self.site_snapshot_sql(), (0, 0, "owner")).fetchall()
         row = next(r for r in rows if r["id"] == "a")
         self.assertEqual((row["latest_score"], row["latest_audit_id"], row["latest_audit_at"]), (90, "new", 2))
         self.assertEqual((row["security_score"], row["previous_score"]), (89, 70))
         self.assertIsNone(next(r for r in rows if r["id"] == "c")["latest_score"])
+
+    def test_site_snapshot_exposes_homepage_unavailability_for_latest_result(self):
+        self.result("down", "a", 4, score=0)
+        self.finding("down", "reliability.homepage-unavailable", "critical")
+        row = next(r for r in self.db.execute(self.site_snapshot_sql(), (0, 0, "owner")).fetchall() if r["id"] == "a")
+        self.assertEqual((row["latest_score"], row["homepage_unavailable"]), (0, 1))
 
 
 if __name__ == "__main__":

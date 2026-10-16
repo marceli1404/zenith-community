@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { siteStatus, type SiteStatusInput } from "@shared/site-status";
+import { publicStatusState, siteStatus, type SiteStatusInput } from "@shared/site-status";
 
 const BASE: SiteStatusInput = {
   status: "verified",
@@ -21,6 +21,10 @@ describe("siteStatus", () => {
 
   it("flags monitoring disabled", () => {
     expect(siteStatus({ ...BASE, monitorEnabled: false })).toEqual({ text: "Monitoring disabled", kind: "quiet" });
+  });
+
+  it("distinguishes a plan-limit pause from owner-disabled monitoring", () => {
+    expect(siteStatus({ ...BASE, monitorEnabled: false, monitorPaused: true })).toEqual({ text: "Monitoring paused", kind: "warn" });
   });
 
   it("reports not checked when there is no check timestamp", () => {
@@ -57,5 +61,30 @@ describe("siteStatus", () => {
 
   it("reports operational when there is no nextCheckAt to compare against", () => {
     expect(siteStatus({ ...BASE, nextCheckAt: undefined })).toEqual({ text: "Operational", kind: "good" });
+  });
+});
+
+describe("publicStatusState", () => {
+  const now = 10_000;
+
+  it("keeps an active incident down even when monitoring is disabled", () => {
+    expect(publicStatusState({ ...BASE, openIncident: true, monitorEnabled: false }, now)).toBe("down");
+  });
+
+  it("maps a recent failed check to degraded", () => {
+    expect(publicStatusState({ ...BASE, lastOk: 0 }, now)).toBe("degraded");
+  });
+
+  it("calls a fresh successful check operational", () => {
+    expect(publicStatusState({ ...BASE, nextCheckAt: now }, now)).toBe("operational");
+  });
+
+  it.each([
+    ["monitoring paused", { ...BASE, monitorEnabled: false, monitorPaused: true }],
+    ["monitoring disabled", { ...BASE, monitorEnabled: false }],
+    ["no check recorded", { ...BASE, lastCheckedAt: null, lastOk: null }],
+    ["check overdue", { ...BASE, nextCheckAt: now - 120_001 }],
+  ])("reports %s as unknown", (_label, input) => {
+    expect(publicStatusState(input, now)).toBe("unknown");
   });
 });

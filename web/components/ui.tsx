@@ -200,7 +200,7 @@ function useCountTo(target: number, duration: number, enabled: boolean): number 
 }
 
 /** The Zenith Score ring — an eclipse-like gauge with a faint outer orbit and
- *  an orbital node at the arc's leading edge. Accessible text equivalent (§48).
+ *  an orbital node at the arc's leading edge. Accessible text equivalent.
  *
  *  Entry runs once, when the ring first scrolls into view: 900ms deceleration to
  *  the real score, with the numeral and the arc moving together. After that, the
@@ -209,7 +209,7 @@ function useCountTo(target: number, duration: number, enabled: boolean): number 
  *  re-render never replays it. `previous` (a real prior score, when one exists)
  *  adds a subtle signed delta. The accessible name always states the target
  *  value, so assistive technology never hears intermediate numbers. */
-export function ScoreRing({ score, size = 88, label, previous }: { score: number; size?: number; label?: string; previous?: number | null }) {
+export function ScoreRing({ score, size = 88, label, previous }: { score: number | null; size?: number; label?: string; previous?: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   // Decide the already-in-viewport case before the first paint. IntersectionObserver
@@ -233,23 +233,23 @@ export function ScoreRing({ score, size = 88, label, previous }: { score: number
   const cxy = size / 2;
   const r = (size - 12) / 2;
   const c = 2 * Math.PI * r;
-  const clamped = Math.max(0, Math.min(100, score));
-  const color = scoreColor(score);
+  const clamped = score === null ? 0 : Math.max(0, Math.min(100, score));
+  const color = score === null ? "var(--color-muted)" : scoreColor(score);
   // Orbital node position at the leading edge of the arc (starts at 12 o'clock).
   const angle = (-90 + (clamped / 100) * 360) * (Math.PI / 180);
   const nodeX = cxy + r * Math.cos(angle);
   const nodeY = cxy + r * Math.sin(angle);
-  const shown = useCountTo(score, 900, visible);
-  const delta = typeof previous === "number" && previous !== score ? score - previous : null;
+  const shown = useCountTo(score ?? 0, 900, visible);
+  const delta = score !== null && typeof previous === "number" && previous !== score ? score - previous : null;
   return (
-    <div ref={ref} className={`score-signature ${visible ? "score-visible" : ""} inline-flex flex-col items-center`} style={{ "--score-start": c, "--node-start": `${-clamped * 3.6}deg` } as CSSProperties} role="img" aria-label={`${label ? label + " " : "Zenith "}score ${score} out of 100${delta !== null ? `, ${delta > 0 ? "up" : "down"} ${Math.abs(delta)} from ${previous}` : ""}`}>
+    <div ref={ref} className={`score-signature ${visible ? "score-visible" : ""} inline-flex flex-col items-center`} style={{ "--score-start": c, "--node-start": `${-clamped * 3.6}deg` } as CSSProperties} role="img" aria-label={score === null ? `${label ? label + " " : "Zenith "}score not assessed` : `${label ? label + " " : "Zenith "}score ${score} out of 100${delta !== null ? `, ${delta > 0 ? "up" : "down"} ${Math.abs(delta)} from ${previous}` : ""}`}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {/* faint outer orbit */}
         <circle className="score-track" cx={cxy} cy={cxy} r={r + 4} fill="none" stroke="var(--color-accent)" strokeWidth={0.75} opacity={0.25} />
         {/* track */}
         <circle cx={cxy} cy={cxy} r={r} fill="none" stroke="var(--color-border)" strokeWidth={6} />
         {/* score arc */}
-        <circle
+        {score !== null && <circle
           className="score-arc"
           cx={cxy}
           cy={cxy}
@@ -261,11 +261,11 @@ export function ScoreRing({ score, size = 88, label, previous }: { score: number
           strokeDasharray={c}
           strokeDashoffset={c - (clamped / 100) * c}
           transform={`rotate(-90 ${cxy} ${cxy})`}
-        />
+        />}
         {/* orbital node */}
-        {clamped > 0 && clamped < 100 && <g className="score-node"><circle cx={nodeX} cy={nodeY} r={2.4} fill={color} /></g>}
+        {score !== null && clamped > 0 && clamped < 100 && <g className="score-node"><circle cx={nodeX} cy={nodeY} r={2.4} fill={color} /></g>}
         <text x="50%" y="50%" textAnchor="middle" dy="0.35em" fontSize={size * 0.29} fontWeight={700} fill="var(--color-text)" style={{ fontVariantNumeric: "tabular-nums" }}>
-          {shown}
+          {score === null ? "—" : shown}
         </text>
       </svg>
       {label && <span className="text-xs text-muted mt-1">{label}</span>}

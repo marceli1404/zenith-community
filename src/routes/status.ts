@@ -1,5 +1,5 @@
 /**
- * Public status pages (§34). Served without authentication by slug. Exposes ONLY
+ * Public status pages. Served without authentication by slug. Exposes ONLY
  * operational data (status, uptime, incident history, response times) — never
  * security findings, audit results, or account information. Owners can
  * disable a status page. Availability is controlled by the installation's
@@ -10,6 +10,9 @@ import { Hono } from "hono";
 import type { AppEnv } from "../middleware";
 import { all, first } from "../db";
 import { reliabilityScore } from "@shared/scoring";
+import { getMaxSiteCount } from "@shared/entitlements";
+import { resolveAccess } from "../lib/access";
+import { publicStatusState } from "@shared/site-status";
 
 const status = new Hono<AppEnv>();
 
@@ -18,18 +21,27 @@ interface SiteRow {
   user_id: string;
   name: string;
   normalized_origin: string;
+  status: string;
   status_page_enabled: number;
+  created_at: number;
+  older_site_count: number;
 }
 
 status.get("/:slug", async (c) => {
   const site = await first<SiteRow>(
     c.env.DB,
-    `SELECT id, user_id, name, normalized_origin, status_page_enabled FROM sites WHERE status_page_slug = ?`,
+    `SELECT id, user_id, name, normalized_origin, status, status_page_enabled, created_at,
+       (SELECT COUNT(*) FROM sites older
+        WHERE older.user_id = sites.user_id
+          AND (older.created_at < sites.created_at OR (older.created_at = sites.created_at AND older.id < sites.id))) AS older_site_count
+     FROM sites WHERE status_page_slug = ?`,
     c.req.param("slug"),
   );
   if (!site || !site.status_page_enabled) {
     return c.json({ error: "Status page not found." }, 404);
   }
+  const access = await resolveAccess(c.env.DB, site.user_id);
+  const monitoringPaused = site.older_site_count >= getMaxSiteCount(access.plan);
   const nowMs = Date.now();
   const day = 24 * 60 * 60 * 1000;
 
@@ -46,14 +58,22 @@ status.get("/:slug", async (c) => {
       `SELECT started_at, resolved_at, reason FROM incidents WHERE site_id = ? ORDER BY started_at DESC LIMIT 10`,
       site.id,
     ),
-    first<{ last_ok: number | null; last_response_ms: number | null }>(
+    first<{ enabled: number; last_checked_at: number | null; last_ok: number | null; last_response_ms: number | null; next_check_at: number | null }>(
       c.env.DB,
-      `SELECT m.last_ok, m.last_response_ms FROM monitors m WHERE m.site_id = ?`,
+      `SELECT m.enabled, m.last_checked_at, m.last_ok, m.last_response_ms, m.next_check_at FROM monitors m WHERE m.site_id = ?`,
       site.id,
     ),
   ]);
 
-  const state = openIncident ? "down" : monitor?.last_ok === 0 ? "degraded" : "operational";
+  const state = publicStatusState({
+    status: site.status,
+    openIncident: !!openIncident,
+    monitorEnabled: monitor?.enabled === 1,
+    monitorPaused: monitoringPaused,
+    lastCheckedAt: monitor?.last_checked_at ?? null,
+    lastOk: monitor?.last_ok ?? null,
+    nextCheckAt: monitor?.next_check_at ?? null,
+  }, nowMs);
 
   return c.json({
     name: site.name,
@@ -62,6 +82,7 @@ status.get("/:slug", async (c) => {
     uptime30d: reliabilityScore(last30.ok, last30.total),
     avgResponseMs: last24.avgMs,
     lastResponseMs: monitor?.last_response_ms ?? null,
+    lastCheckedAt: monitor?.last_checked_at ?? null,
     openSince: openIncident?.started_at ?? null,
     incidents: recentIncidents.map((i) => ({
       startedAt: i.started_at,

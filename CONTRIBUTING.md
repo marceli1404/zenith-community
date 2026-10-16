@@ -9,7 +9,7 @@ repository's scope.
 - Check existing issues and pull requests for related work.
 - Describe the behavior you changed and the reason for it.
 - Add or update focused tests when behavior changes.
-- Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
+- Run `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e`, and `npm run build`.
 - Never include production credentials, customer data, or private deployment
   identifiers in code, fixtures, screenshots, or issue reports.
 

@@ -19,6 +19,8 @@ interface Site {
   verificationToken: string;
   verifiedAt: number | null;
   latestScore: number | null;
+  homepageUnavailable?: boolean;
+  latestAuditId?: string | null;
   uptime24h: number | null;
   lastOk: number | null;
   lastCheckedAt: number | null;
@@ -33,10 +35,9 @@ function monitoring(s: Site) {
   return siteStatus({
     status: s.status,
     openIncident: s.openIncident,
-    // Disabled either by the owner (monitorEnabled) or by the scheduler for
-    // being over the plan's site limit (monitoringPaused) — either reads as
-    // "not currently being monitored".
+    // Keep owner-disabled monitoring distinct from a plan-limit pause.
     monitorEnabled: s.monitorEnabled !== false && !s.monitoringPaused,
+    monitorPaused: s.monitoringPaused,
     lastCheckedAt: s.lastCheckedAt,
     lastOk: s.lastOk,
     nextCheckAt: s.nextCheckAt,
@@ -63,13 +64,13 @@ export default function Sites() {
   }
   useEffect(() => {
     load().catch(() => setLoadError(true));
-    // Prefill from a URL the visitor scanned before signing up (§31).
+    // Prefill from a URL the visitor scanned before signing up.
     try {
-      const remembered = sessionStorage.getItem("astra-scan-url");
+      const remembered = sessionStorage.getItem("zenith-community-scan-url");
       if (remembered) {
         setUrl(remembered);
         setShowAdd(true);
-        sessionStorage.removeItem("astra-scan-url");
+        sessionStorage.removeItem("zenith-community-scan-url");
       }
     } catch {
       /* ignore */
@@ -150,7 +151,7 @@ export default function Sites() {
                         {s.monitoringPaused && <small className="cn-muted site-item__badges"><Chip tone="warn">Monitoring paused</Chip></small>}
                       </span>
                     </span>
-                    <span>{s.latestScore != null ? <span className="cn-score" style={{ color: scoreColor(s.latestScore) }}>{s.latestScore}</span> : <span className="cn-score cn-score--none">Not audited</span>}</span>
+                    <span>{s.homepageUnavailable ? <span className="cn-score cn-score--none" aria-label="Homepage could not be assessed, score 0">0 · Homepage could not be assessed</span> : s.latestScore != null ? <span className="cn-score" style={{ color: scoreColor(s.latestScore) }}>{s.latestScore}</span> : <span className="cn-score cn-score--none">{s.latestAuditId ? "Not assessed" : "Not audited"}</span>}</span>
                     <span className={`ov-site-status signal-${status.kind}`}><i aria-hidden="true" />{status.text}</span>
                     <span className="cn-value"><span className="cn-cell-label">24h uptime </span>{s.lastCheckedAt && s.uptime24h != null ? `${s.uptime24h}%` : <span className="cn-muted">No checks</span>}</span>
                     <span className="cn-value cn-muted cn-col-checked">{s.lastCheckedAt ? relativeTime(s.lastCheckedAt) : "Not checked"}</span>

@@ -157,7 +157,7 @@ function AuthTabs() {
 }
 
 const SHOWCASE_POINTS = [
-  { Icon: IconPulse, title: "Uptime checks every minute", body: "Receive downtime and recovery emails when the operator enables delivery." },
+  { Icon: IconPulse, title: "Uptime checks every minute by default", body: "Receive downtime and recovery emails when the operator enables delivery." },
   { Icon: IconShield, title: "Audits you can trace", body: "Review security, accessibility, SEO and performance findings with their evidence." },
   { Icon: IconCheck, title: "A clear next step for each finding", body: "Review a practical recommendation alongside the evidence." },
 ];
@@ -199,7 +199,7 @@ function AuthShowcase() {
         </div>
 
         <p className="auth-showcase__note">
-          <IconLock size={14} /> Zenith only reads public pages. It never signs in to or changes your site.
+          <IconLock size={14} /> Zenith does not log in to the target site. A GET route or page script may still cause side effects.
         </p>
       </div>
     </aside>

@@ -37,9 +37,7 @@ export const withConfig: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-/** Apply security headers to every response (§44). Zenith Hosted (/d/*) sets
- *  its own, stricter, no-script CSP directly on its responses (src/routes/hosted.ts)
- *  — this middleware must not overwrite it with the SPA's policy. */
+/** Apply baseline security headers without replacing a stricter route-specific CSP. */
 export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
   const h = c.res.headers;
@@ -94,7 +92,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 };
 
 /**
- * Same-origin guard for state-changing requests (defense-in-depth CSRF, §44).
+ * Same-origin guard for state-changing requests as defense-in-depth for CSRF.
  * Better Auth sets SameSite cookies, but we additionally reject cross-origin
  * mutations by comparing the Origin header's host to the request host. Safe
  * (GET/HEAD) methods and requests with no Origin (same-origin navigations) pass.

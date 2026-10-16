@@ -27,6 +27,8 @@ app.get("/api/config", (c) => {
   const cfg = c.get("config");
   return c.json({
     appName: cfg.appName,
+    environment: cfg.environment,
+    isProduction: cfg.isProduction,
     turnstileSiteKey: cfg.turnstileSiteKey,
     authProviders: cfg.authProviders,
     emailEnabled: cfg.emailEnabled,
@@ -87,19 +89,19 @@ export default {
   },
   async queue(batch: MessageBatch, env: Bindings): Promise<void> {
     switch (batch.queue) {
-      case "zenith-monitor":
+      case "zenith-community-monitor":
         for (const message of batch.messages) {
           try { await processMonitorCheck(env, message.body as MonitorJob); message.ack(); }
           catch { message.retry(); }
         }
         break;
-      case "zenith-audit":
+      case "zenith-community-audit":
         for (const message of batch.messages) {
           try { await processAuditJob(env, message.body as AuditJob); message.ack(); }
           catch { message.retry(); }
         }
         break;
-      case "zenith-email":
+      case "zenith-community-email":
         for (const message of batch.messages) {
           try { await deliverEmail(env, message.body as EmailJob); message.ack(); }
           catch { message.retry(); }

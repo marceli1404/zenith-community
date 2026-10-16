@@ -5,7 +5,7 @@
  * so the analysis is consistent. Browser-only checks (axe accessibility, lab
  * performance metrics) live in the browser step, not here.
  *
- * Wording is deliberately measured (§25/§26/§27): we never claim a site is
+ * Wording is deliberately measured: we never claim a site is
  * "secure" or "accessible", only what these specific checks observed.
  */
 
