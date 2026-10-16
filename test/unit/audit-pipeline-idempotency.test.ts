@@ -161,6 +161,58 @@ describe("audit queue idempotency", () => {
       && statement.params[5] === "reliability.analysis-truncated")).toBe(true);
   });
 
+  it("does not publish a complete score when discovered pages were skipped", async () => {
+    mocks.first.mockResolvedValueOnce(jobRow).mockResolvedValueOnce(null);
+    mocks.crawlSite.mockResolvedValue({
+      pages: [],
+      findings: [{
+        category: "reliability",
+        severity: "info",
+        ruleId: "reliability.analysis-incomplete",
+        title: "Crawl page limit reached",
+        description: "The crawler reached its page limit before it could check every discovered page.",
+        pageUrl: "https://example.com",
+        evidence: { maxPages: 1 },
+        recommendation: "Raise the crawl page limit, then run the audit again.",
+      }],
+      brokenLinks: 0,
+      coverageIncomplete: true,
+      assessmentTruncatedUrls: [],
+      homepageFailure: null,
+      robotsBlock: null,
+      unsafePathBlock: null,
+    });
+    mocks.runBrowserAnalysis.mockResolvedValue({
+      mainDocumentStatus: 200,
+      hasRenderedContent: true,
+      hasGenericErrorPage: false,
+      desktopScreenshotKey: null,
+      mobileScreenshotKey: null,
+      renderedTitle: null,
+      consoleErrors: [],
+      perf: { domContentLoadedMs: null, loadEventMs: null, resourceCount: null, transferredBytes: null },
+    });
+    const prepared: Array<{ sql: string; params: unknown[] }> = [];
+    const env = {
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...params: unknown[]) => { prepared.push({ sql, params }); return { sql, params }; } };
+        },
+        batch: vi.fn(async () => []),
+      },
+    } as unknown as Bindings;
+
+    await processAuditJob(env, { type: "audit", auditJobId: "job-1" } as AuditJob);
+
+    const resultInsert = prepared.find((statement) => statement.sql.includes("INSERT INTO audit_results"));
+    expect(resultInsert?.params[3]).toBe(0);
+    expect(resultInsert?.params.slice(4, 8)).toEqual([0, 0, 0, 0]);
+    expect(resultInsert?.params[8]).toBe(0);
+    expect(resultInsert?.params[9]).toBeNull();
+    expect(prepared.some((statement) => statement.sql.includes("INSERT INTO findings")
+      && statement.params[5] === "reliability.analysis-incomplete")).toBe(true);
+  });
+
   it("persists unsafe-redirect audits as unassessed without browser analysis", async () => {
     mocks.first
       .mockResolvedValueOnce(jobRow)

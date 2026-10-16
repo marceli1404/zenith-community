@@ -329,6 +329,8 @@ describe("crawler availability and linked-page failures", () => {
     const result = await crawlSite("https://example.com");
 
     expect(result.pages).toHaveLength(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings.some((finding) => finding.ruleId === "reliability.analysis-incomplete")).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/private?token=secret"))).toBe(false);
   });
 
@@ -358,8 +360,96 @@ describe("crawler availability and linked-page failures", () => {
     const result = await crawlSite("https://example.com");
 
     expect(result.pages).toHaveLength(1);
+    expect(result.coverageIncomplete).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/%70rivate/%7Emember"))).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/caf%C3%A9"))).toBe(false);
+  });
+
+  it("does not score a crawl that stops at its page limit with discovered pages waiting", async () => {
+    vi.mocked(extractPageMeta).mockImplementation(async (body) => ({
+      title: null,
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 0,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: body.includes("page-limit-test") ? ["https://example.com/one", "https://example.com/two"] : [],
+      hasViewportMeta: false,
+    }));
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) {
+        return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "User-agent: *\nDisallow:" };
+      }
+      return { ...html(url), body: "page-limit-test" };
+    });
+
+    const result = await crawlSite("https://example.com", { maxPages: 1 });
+
+    expect(result.pages).toHaveLength(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings.some((finding) => finding.ruleId === "reliability.analysis-incomplete" && finding.title === "Crawl page limit reached")).toBe(true);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("https://example.com/one");
+  });
+
+  it("does not score when linked pages remain beyond the configured crawl depth", async () => {
+    vi.mocked(extractPageMeta).mockImplementation(async () => ({
+      title: null,
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 0,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: ["https://example.com/deeper"],
+      hasViewportMeta: false,
+    }));
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) {
+        return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "User-agent: *\nDisallow:" };
+      }
+      return html(url);
+    });
+
+    const result = await crawlSite("https://example.com", { maxDepth: 0 });
+
+    expect(result.pages).toHaveLength(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings.some((finding) => finding.title === "Linked page is beyond the crawl depth limit")).toBe(true);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("https://example.com/deeper");
+  });
+
+  it("does not score when same-origin link discovery exceeds its parser limit", async () => {
+    vi.mocked(extractPageMeta).mockImplementation(async () => ({
+      title: null,
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 0,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: [],
+      sameOriginLinksTruncated: true,
+      hasViewportMeta: false,
+    }));
+    fetchMock.mockImplementation(async (input) => {
+      const url = String(input ?? "");
+      if (url.endsWith("robots.txt")) {
+        return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body: "User-agent: *\nDisallow:" };
+      }
+      return html(url);
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.pages).toHaveLength(1);
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.findings.some((finding) => finding.title === "Page link discovery limit reached")).toBe(true);
   });
 
   it("blocks an unsafe homepage redirect before requesting the state-changing route", async () => {
@@ -430,6 +520,55 @@ describe("crawler availability and linked-page failures", () => {
     expect(result.homepageFailure).toBeNull();
     expect(result.brokenLinks).toBe(0);
     expect(result.pages).toHaveLength(1);
+  });
+
+  it("marks a linked page as incomplete when its redirect destination is blocked by robots.txt", async () => {
+    const requested: string[] = [];
+    vi.mocked(extractPageMeta).mockImplementation(async (body) => ({
+      title: null,
+      metaDescription: null,
+      canonical: null,
+      htmlLang: null,
+      robotsMeta: null,
+      h1Count: 0,
+      imagesMissingAlt: 0,
+      imageCount: 0,
+      links: body.includes("redirect-coverage-test") ? ["https://example.com/linked"] : [],
+      hasViewportMeta: false,
+    }));
+    fetchMock.mockImplementation(async (input, options) => {
+      const url = String(input ?? "");
+      requested.push(url);
+      if (url.endsWith("/robots.txt")) {
+        const body = url.startsWith("https://destination.example/")
+          ? "User-agent: *\nDisallow: /private"
+          : "User-agent: *\nDisallow:";
+        return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body };
+      }
+      if (url === "https://example.com/linked") {
+        const redirectUrl = "https://destination.example/private";
+        const decision = await options?.redirectPolicy?.(redirectUrl, 12_000);
+        if (decision && !decision.allowed) {
+          return {
+            ok: false as const,
+            errorCode: "redirect_policy" as const,
+            policyCode: decision.code,
+            reason: decision.reason,
+            redirectUrl,
+          };
+        }
+      }
+      return { ...html(url), body: "redirect-coverage-test" };
+    });
+
+    const result = await crawlSite("https://example.com");
+
+    expect(result.coverageIncomplete).toBe(true);
+    expect(result.brokenLinks).toBe(0);
+    expect(result.findings.some((finding) => finding.ruleId === "reliability.analysis-incomplete"
+      && finding.pageUrl === "https://example.com/linked")).toBe(true);
+    expect(requested).toContain("https://destination.example/robots.txt");
+    expect(requested).not.toContain("https://destination.example/private");
   });
 
   it("checks a cross-origin redirect host's robots rules before requesting its page", async () => {

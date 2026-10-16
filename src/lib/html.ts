@@ -24,6 +24,8 @@ export interface PageMeta {
   imageCount: number;
   /** Absolute-resolved hrefs discovered on the page (bounded). */
   links: string[];
+  /** True when more than 250 unique same-origin links were found. */
+  sameOriginLinksTruncated?: boolean;
   hasViewportMeta: boolean;
 }
 
@@ -174,7 +176,9 @@ export async function extractPageMeta(html: string, baseUrl: string, priorityOri
   let titleText = "";
   let canonicalHref: string | null = null;
   const sameOriginLinks: string[] = [];
+  const seenSameOriginLinks = new Set<string>();
   const otherOriginLinks: string[] = [];
+  let sameOriginLinksTruncated = false;
 
   const rewriter = new HTMLRewriter()
     .on("html", {
@@ -242,8 +246,14 @@ export async function extractPageMeta(html: string, baseUrl: string, priorityOri
         if (href === null) return;
         const abs = resolveHttpUrl(href, effectiveBaseUrl);
         if (!abs) return;
-        const list = isSameOrigin(abs, priorityOrigin) ? sameOriginLinks : otherOriginLinks;
-        if (list.length < MAX_LINKS_PER_SCOPE) list.push(abs);
+        if (isSameOrigin(abs, priorityOrigin)) {
+          if (seenSameOriginLinks.has(abs)) return;
+          seenSameOriginLinks.add(abs);
+          if (sameOriginLinks.length < MAX_LINKS_PER_SCOPE) sameOriginLinks.push(abs);
+          else sameOriginLinksTruncated = true;
+          return;
+        }
+        if (otherOriginLinks.length < MAX_LINKS_PER_SCOPE) otherOriginLinks.push(abs);
       },
     });
 
@@ -254,6 +264,7 @@ export async function extractPageMeta(html: string, baseUrl: string, priorityOri
   // Give the crawler and Quick Scan first access to the bounded link budget;
   // external links cannot crowd same-origin pages out of the result.
   meta.links = prioritizePageLinks(sameOriginLinks, otherOriginLinks);
+  meta.sameOriginLinksTruncated = sameOriginLinksTruncated;
 
   // Text nodes arrive raw, so "Acme &amp; Co" must be decoded to be measured.
   meta.title = decodeEntities(titleText).trim() || null;

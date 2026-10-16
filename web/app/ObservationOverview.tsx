@@ -234,7 +234,7 @@ function History({ site }: { site: Site }) {
     </div>
     <Retry state={state} label="History" />
     {!state.data ? state.unloaded ? <p className="cn-muted">Audit history is unavailable.</p> : <Skeleton className="h-48" /> : !points.length ? (
-      <div className="console-history-empty"><ScanLine size={24} /><p>{completedAudits.length ? "Completed audits in this window did not assess site pages, so there are no scores to chart." : "No completed audits in this window."}</p><Link className="cn-link" to={`/app/sites/${site.id}`}>Open site <ArrowRight size={15} /></Link></div>
+      <div className="console-history-empty"><ScanLine size={24} /><p>{completedAudits.length ? "Completed audits in this window have no scores to chart. Open the site to review its audit reports and see which checks could not be completed." : "No completed audits in this window."}</p><Link className="cn-link" to={`/app/sites/${site.id}`}>Open site <ArrowRight size={15} /></Link></div>
     ) : <>
       <div className="console-chart-readout">
         <strong>{focus?.homepage_unavailable === 1 ? <>0<small>/ 100 · Homepage could not be assessed</small></> : <>{focus?.overall_score}<small>/ 100</small></>}</strong>

@@ -98,7 +98,7 @@ export const TEMPLATES: Record<string, (ctx: Ctx) => RenderedEmail> = {
     const site = s(data.siteName, s(data.url));
     const score = data.score !== undefined
       ? ` Overall score: ${data.score}/100.`
-      : " The homepage could not be fully assessed, so no assessed score is available. See the report for details.";
+      : " The audit finished without a calculated score. See the report for details.";
     const id = s(data.auditId);
     return {
       subject: `Your ${site} audit is ready`,

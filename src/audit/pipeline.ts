@@ -156,6 +156,7 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
     const siteAssessed = crawl.homepageFailure === null
       && crawl.robotsBlock === null
       && crawl.unsafePathBlock === null
+      && crawl.coverageIncomplete !== true
       && (crawl.assessmentTruncatedUrls?.length ?? 0) === 0;
     const browserHomepageFailure = browser !== null && !browserHomepageIsAssessable(browser);
     const homepageUnavailable = crawl.homepageFailure !== null || browserHomepageFailure;

@@ -46,6 +46,8 @@ export interface CrawlOutput {
   pages: CrawledPage[];
   findings: Finding[];
   brokenLinks: number;
+  /** True when discovered pages or the page cap prevented a complete crawl. */
+  coverageIncomplete: boolean;
   /** Pages whose response exceeded the configured read limit and was not fully assessed. */
   assessmentTruncatedUrls: string[];
   homepageFailure: HomepageFailure | null;
@@ -85,7 +87,7 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
     ? { kind: "disallowed" as const, path: homepagePath }
     : null);
   if (robotsBlock) {
-    return { pages: [], findings: [], brokenLinks: 0, assessmentTruncatedUrls: [], homepageFailure: null, robotsBlock, unsafePathBlock: null, browserRequestAllowed };
+    return { pages: [], findings: [], brokenLinks: 0, coverageIncomplete: false, assessmentTruncatedUrls: [], homepageFailure: null, robotsBlock, unsafePathBlock: null, browserRequestAllowed };
   }
   const robotsRules = robots.rules;
   const redirectBlocks = new Map<string, RobotsBlock | UnsafePathBlock>();
@@ -129,11 +131,33 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
 
   const pages: CrawledPage[] = [];
   const findings: Finding[] = [];
+  const incompletePageUrls = new Set<string>();
   let brokenLinks = 0;
+  let pageLimitReached = false;
   const assessmentTruncatedUrls: string[] = [];
   let homepageFailure: HomepageFailure | null = null;
   let homepageRedirectRobotsBlock: RobotsBlock | null = null;
   let homepageRedirectUnsafePathBlock: UnsafePathBlock | null = null;
+  const markCoverageIncomplete = (
+    pageUrl: string,
+    description: string,
+    evidence: Record<string, unknown>,
+    title = "Linked page was not assessed",
+    recommendation = "Allow the crawler to check this linked page, or raise the crawl page limit, then run the audit again.",
+  ) => {
+    if (incompletePageUrls.has(pageUrl)) return;
+    incompletePageUrls.add(pageUrl);
+    findings.push({
+      category: "reliability",
+      severity: "info",
+      ruleId: "reliability.analysis-incomplete",
+      title,
+      description,
+      pageUrl,
+      evidence,
+      recommendation,
+    });
+  };
 
   while (queue.length > 0 && pages.length < opts.maxPages) {
     const batch = queue.splice(0, opts.concurrency);
@@ -150,7 +174,10 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
     );
 
     for (const { url, depth, res } of results) {
-      if (pages.length >= opts.maxPages) break;
+      if (pages.length >= opts.maxPages) {
+        pageLimitReached = true;
+        break;
+      }
       if (!res.ok) {
         if (res.errorCode === "redirect_policy") {
           const block = redirectBlocks.get(res.redirectUrl ?? "") ?? {
@@ -162,7 +189,16 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
             else homepageRedirectRobotsBlock = block;
             break;
           }
-          // A policy-blocked child page is unassessed, not a broken link.
+          // Deliberately excluded state-changing routes are outside the audit.
+          // Other policy-blocked child redirects leave discovered coverage incomplete.
+          if (block.kind !== "unsafe_path") {
+            const policySource = block.kind === "disallowed" ? "robots.txt" : "an unreadable robots.txt policy";
+            markCoverageIncomplete(
+              url,
+              `The crawler could not check this linked page because its redirect destination was blocked by ${policySource}${block.origin ? ` at ${block.origin}` : ""}.`,
+              { kind: "redirect_blocked", targetUrl: res.redirectUrl ?? null, block },
+            );
+          }
           continue;
         }
         if (depth === 0) homepageFailure = { kind: "request_failed", errorCode: res.errorCode };
@@ -231,6 +267,15 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
         continue;
       }
       const meta = await extractPageMeta(res.body ?? "", res.finalUrl, origin);
+      if (meta.sameOriginLinksTruncated) {
+        markCoverageIncomplete(
+          res.finalUrl,
+          "This page contains more same-origin links than the scanner can discover, so some linked pages may be missing from the audit.",
+          { kind: "same_origin_link_limit", maxLinks: 250 },
+          "Page link discovery limit reached",
+          "Split the site into smaller sections or raise the link discovery limit in this installation, then run the audit again.",
+        );
+      }
       const ctx: PageContext = {
         url,
         finalUrl: res.finalUrl,
@@ -245,7 +290,10 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
       // Enqueue same-origin, safe, unseen links up to depth/page limits.
       if (depth < opts.maxDepth) {
         for (const link of meta.links) {
-          if (pages.length + queue.length >= opts.maxPages * 2) break;
+          if (pages.length + queue.length >= opts.maxPages * 2) {
+            pageLimitReached = true;
+            break;
+          }
           const canon = canonicalizeUrl(link, res.finalUrl);
           if (!canon) continue;
           if (!isSameOrigin(canon, origin)) continue;
@@ -254,18 +302,63 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
           // RFC 9309 path matching includes the query component.
           const path = `${pageUrl.pathname}${pageUrl.search}`;
           if (isUnsafeCrawlPath(path)) continue;
-          if (isDisallowed(robotsRules, path)) continue;
+          if (isDisallowed(robotsRules, path)) {
+            markCoverageIncomplete(
+              canon,
+              `The crawler could not check this linked page because robots.txt disallows ${path}.`,
+              { kind: "robots_disallowed", path },
+            );
+            continue;
+          }
           seen.add(canon);
           queue.push({ url: canon, depth: depth + 1 });
         }
+      } else {
+        for (const link of meta.links) {
+          const canon = canonicalizeUrl(link, res.finalUrl);
+          if (!canon || !isSameOrigin(canon, origin) || seen.has(canon)) continue;
+          const pageUrl = new URL(canon);
+          const path = `${pageUrl.pathname}${pageUrl.search}`;
+          if (isUnsafeCrawlPath(path)) continue;
+          if (isDisallowed(robotsRules, path)) {
+            markCoverageIncomplete(
+              canon,
+              `The crawler could not check this linked page because robots.txt disallows ${path}.`,
+              { kind: "robots_disallowed", path },
+            );
+            continue;
+          }
+          markCoverageIncomplete(
+            canon,
+            `The crawler found this linked page beyond its configured ${opts.maxDepth}-level crawl depth.`,
+            { kind: "crawl_depth_limit", maxDepth: opts.maxDepth },
+            "Linked page is beyond the crawl depth limit",
+            "Raise the crawl depth or narrow the audit scope, then run the audit again.",
+          );
+        }
       }
     }
+  }
+
+  if (queue.length > 0) pageLimitReached = true;
+  if (pageLimitReached) {
+    findings.push({
+      category: "reliability",
+      severity: "info",
+      ruleId: "reliability.analysis-incomplete",
+      title: "Crawl page limit reached",
+      description: `The crawler reached its ${opts.maxPages}-page limit before it could check every discovered page. No overall score was calculated.`,
+      pageUrl: origin,
+      evidence: { maxPages: opts.maxPages },
+      recommendation: "Raise the crawl page limit or reduce the number of pages in the selected audit scope, then run the audit again.",
+    });
   }
 
   return {
     pages,
     findings,
     brokenLinks,
+    coverageIncomplete: pageLimitReached || incompletePageUrls.size > 0,
     assessmentTruncatedUrls,
     homepageFailure,
     robotsBlock: homepageRedirectRobotsBlock,
