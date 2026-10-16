@@ -51,7 +51,7 @@ export function generateReportHtml(data: ReportData): string {
   const scoreExplanation = homepageUnavailable
     ? "The homepage could not be fully assessed, so the overall score was set to 0 and technical categories were not assessed. See the finding for the observed response."
     : scoreNotAssessed
-    ? "Category results are unassessed because no site pages were checked. No overall score was calculated."
+    ? "Category results are unassessed because the audit could not complete all required checks. No overall score was calculated."
     : `The overall score blends security, accessibility, SEO and performance equally. ${data.scores.reliabilityDeduction === null
       ? "Reliability impact was not recorded for this saved audit. The score shown is the saved result."
       : `Reliability findings deducted ${data.scores.reliabilityDeduction} points from the overall score. Repeated failures count per affected URL, up to five URLs per rule.`}`;

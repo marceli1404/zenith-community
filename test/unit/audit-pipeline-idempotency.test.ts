@@ -393,4 +393,51 @@ describe("audit queue idempotency", () => {
       origin: "https://www.example.com/",
     }));
   });
+
+  it("persists a browser-analysis failure as unassessed instead of a high partial score", async () => {
+    mocks.first
+      .mockResolvedValueOnce(jobRow)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    mocks.crawlSite.mockResolvedValue({
+      pages: [{
+        ctx: {
+          url: "https://example.com/",
+          finalUrl: "https://example.com/",
+          statusCode: 200,
+          responseMs: 10,
+          bytes: 13,
+          headers: {},
+          meta: { title: "Example", metaDescription: null, canonical: null, htmlLang: null, robotsMeta: null, h1Count: 1, imagesMissingAlt: 0, imageCount: 0, links: [], hasViewportMeta: true },
+        },
+        findings: [],
+        depth: 0,
+      }],
+      findings: [],
+      brokenLinks: 0,
+      homepageFailure: null,
+      robotsBlock: null,
+      unsafePathBlock: null,
+    });
+    mocks.runBrowserAnalysis.mockResolvedValue(null);
+    const prepared: Array<{ sql: string; params: unknown[] }> = [];
+    const env = {
+      DB: {
+        prepare(sql: string) {
+          return { bind: (...params: unknown[]) => { prepared.push({ sql, params }); return { sql, params }; } };
+        },
+        batch: vi.fn(async () => []),
+      },
+    } as unknown as Bindings;
+
+    await processAuditJob(env, { type: "audit", auditJobId: "job-1" } as AuditJob);
+
+    const resultInsert = prepared.find((statement) => statement.sql.includes("INSERT INTO audit_results"));
+    expect(resultInsert?.params[3]).toBe(0); // unassessed sentinel; read paths display null
+    expect(resultInsert?.params.slice(4, 8)).toEqual([0, 0, 0, 0]);
+    expect(resultInsert?.params[8]).toBe(0);
+    expect(resultInsert?.params[9]).toBeNull();
+    expect(prepared.some((statement) => statement.sql.includes("INSERT INTO findings")
+      && statement.params[5] === "reliability.browser-analysis-unavailable")).toBe(true);
+  });
 });

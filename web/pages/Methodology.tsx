@@ -32,8 +32,8 @@ export default function Methodology() {
             (25% each), then reliability deductions are subtracted from the overall score. The result is rounded and clamped to 0-100.
           </p>
           <p>
-            Reliability findings also reduce the overall score. Repeated linked-page failures are charged per affected URL, up to five
-            URLs for each rule. Browser checks that do not finish are marked unassessed and reduce the overall score.
+            Reliability findings also reduce a calculated overall score. Repeated linked-page failures are charged per affected URL, up to five
+            URLs for each rule. If browser checks do not finish, those checks remain unassessed and no overall score is calculated.
           </p>
           <p>
             If the crawler cannot retrieve a complete HTML homepage, the overall score is 0/100 and category scores are unassessed.
@@ -42,7 +42,7 @@ export default function Methodology() {
             The same applies if the browser's main-document response fails or is missing, is empty
             or partial, or renders no visible homepage content. Browser responses of 204 or 205 are empty; 206 is partial. If the
             crawler and browser receive different homepage responses, the report shows both observations. If browser analysis cannot
-            run at all, its checks stay unassessed and reduce the reliability score. A homepage redirect blocked by robots.txt or
+            run at all, its checks stay unassessed and no overall score is calculated. A homepage redirect blocked by robots.txt or
             crawler safety policy is marked Not assessed. If robots.txt disallows the homepage or cannot be read safely, no site pages
             are checked and the audit is marked Not assessed.
           </p>

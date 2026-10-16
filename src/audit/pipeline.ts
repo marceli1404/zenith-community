@@ -159,7 +159,10 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
       && (crawl.assessmentTruncatedUrls?.length ?? 0) === 0;
     const browserHomepageFailure = browser !== null && !browserHomepageIsAssessable(browser);
     const homepageUnavailable = crawl.homepageFailure !== null || browserHomepageFailure;
-    const siteFullyAssessed = siteAssessed && !browserHomepageFailure;
+    // A successful HTTP crawl is not a complete audit if the browser checks
+    // could not run. Keep the result as the existing unassessed sentinel so
+    // summary queries and report normalization do not present a partial score.
+    const siteFullyAssessed = siteAssessed && browser !== null && !browserHomepageFailure;
     const scores = computeScores(grouped, { siteAvailable: siteFullyAssessed });
 
     // 4) Persist result, pages, and (raw) findings in one batch.
@@ -175,7 +178,7 @@ export async function processAuditJob(env: Bindings, job: AuditJob): Promise<voi
       ).bind(
         resultId, row.id, row.site_id, scores.overall, scores.categories.performance ?? 0,
         scores.categories.accessibility ?? 0, scores.categories.seo ?? 0, scores.categories.security ?? 0,
-        siteFullyAssessed ? 1 : 0, homepageUnavailable ? 0 : siteAssessed ? scores.reliabilityDeduction : null, CURRENT_SCORING_VERSION,
+        siteFullyAssessed ? 1 : 0, homepageUnavailable ? 0 : siteFullyAssessed ? scores.reliabilityDeduction : null, CURRENT_SCORING_VERSION,
         crawl.pages.length, crawl.brokenLinks,
         browserHomepageFailure ? null : browser?.desktopScreenshotKey ?? null,
         browserHomepageFailure ? null : browser?.mobileScreenshotKey ?? null,

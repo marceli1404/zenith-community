@@ -50,7 +50,7 @@ describe("saved audit score in PDF report HTML", () => {
     expect(html).toContain("Audit score not assessed");
     expect(html).toContain("Not assessed");
     expect(html).toContain("No score calculated");
-    expect(html).toContain("Category results are unassessed because no site pages were checked.");
+    expect(html).toContain("Category results are unassessed because the audit could not complete all required checks.");
     expect(html).not.toContain("Overall score / 100");
   });
 
