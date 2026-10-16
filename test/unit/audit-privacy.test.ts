@@ -17,12 +17,9 @@ describe("audit URL privacy", () => {
       .toBe("https://example.test/[redacted]");
     expect(sanitizeAuditUrl("https://example.test/a1b2c3d4"))
       .toBe("https://example.test/[redacted]");
-    expect(sanitizeAuditUrl("https://example.test/docs/guide-2026"))
-      .toBe("https://example.test/docs/guide-2026");
-  });
-
-  it("hides shorter standalone mixed letter and digit tokens in paths", () => {
-    expect(sanitizeAuditUrl("https://example.test/Ab12Cd34Ef56Gh78"))
+    expect(sanitizeAuditUrl("https://example.test/ABCDEFGH12345678"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/abcdefghi1"))
       .toBe("https://example.test/[redacted]");
     expect(sanitizeAuditUrl("https://example.test/docs/guide-2026"))
       .toBe("https://example.test/docs/guide-2026");

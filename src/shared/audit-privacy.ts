@@ -4,7 +4,7 @@ const SENSITIVE_PATH_SEGMENT = /(?:token|secret|auth|password|passwd|reset|verif
 const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_SEGMENT = /^[^/\s@]+@[^/\s@]+\.[^/\s@]+$/;
 const OPAQUE_SEGMENT = /^[A-Za-z0-9_-]{20,}$/;
-const MIXED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)(?:(?=.*[A-Z])(?=.*[a-z])|(?=.*\d[A-Za-z_-]+.*\d))[A-Za-z0-9_-]+$/;
+const MIXED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]+$/;
 const ABSOLUTE_URL = /https?:\/\/[^\s"'<>),]+/gi;
 const RELATIVE_URL_IN_TEXT = /(^|[\s("'=])((?:\/|\.\.\/|\.\/)[^\s"'<>),;]*)/g;
 const URL_FIELD = /(?:url|href|canonical|destination|redirect|path)$/i;
