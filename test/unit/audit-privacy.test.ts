@@ -23,6 +23,10 @@ describe("audit URL privacy", () => {
       .toBe("https://example.test/[redacted]");
     expect(sanitizeAuditUrl("https://example.test/abcdefghi1"))
       .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/Ab12_Cd34"))
+      .toBe("https://example.test/[redacted]");
+    expect(sanitizeAuditUrl("https://example.test/ab12-cd34"))
+      .toBe("https://example.test/[redacted]");
     expect(sanitizeAuditUrl("https://example.test/docs/guide-2026"))
       .toBe("https://example.test/docs/guide-2026");
   });

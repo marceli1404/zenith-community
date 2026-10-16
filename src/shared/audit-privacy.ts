@@ -9,6 +9,7 @@ const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3
 const EMAIL_SEGMENT = /^[^/\s@]+@[^/\s@]+\.[^/\s@]+$/;
 const OPAQUE_SEGMENT = /^[A-Za-z0-9_-]{20,}$/;
 const MIXED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9]+$/;
+const SEPARATED_TOKEN_SEGMENT = /^(?=.{8,}$)(?=.*[A-Za-z])(?=.*\d)(?=.*[-_])(?:(?=.*[A-Z])(?=.*[a-z])|(?=.*\d[-_A-Za-z]+\d))[A-Za-z0-9_-]+$/;
 const ABSOLUTE_URL = /https?:\/\/[^\s"'<>),]+/gi;
 const RELATIVE_URL_IN_TEXT = /(^|[\s("'=[<{])((?:\/|\.\.\/|\.\/)[^\s"'<>),;]*)/g;
 const URL_FIELD = /(?:url|href|canonical|destination|redirect|path)$/i;
@@ -49,7 +50,7 @@ export function sanitizeAuditUrl(input: string, base?: string): string {
     const words = decoded.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[^a-z0-9]+/i).filter(Boolean);
     const sensitive = words.some((word) => SENSITIVE_PATH_WORDS.has(word.toLowerCase()));
     const opaque = UUID_SEGMENT.test(decoded) || EMAIL_SEGMENT.test(decoded) || OPAQUE_SEGMENT.test(decoded)
-      || MIXED_TOKEN_SEGMENT.test(decoded) || /^\d{8,}$/.test(decoded);
+      || MIXED_TOKEN_SEGMENT.test(decoded) || SEPARATED_TOKEN_SEGMENT.test(decoded) || /^\d{8,}$/.test(decoded);
     if (redactNext || sensitive || opaque) parts[i] = "[redacted]";
     redactNext = sensitive;
   }
