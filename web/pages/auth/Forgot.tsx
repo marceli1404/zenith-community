@@ -28,7 +28,7 @@ export default function Forgot() {
         ? "Checking email delivery settings."
         : config?.emailEnabled
           ? "Enter your account email and we'll send you a link to choose a new password."
-          : "Password reset email isn't available for this installation."}
+          : undefined}
       footer={
         <Link to="/login" className="auth-link">
           Back to log in

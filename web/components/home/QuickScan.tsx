@@ -242,7 +242,7 @@ export function QuickScan() {
           <p className="lx-scan__note" role="status">
             {configUnavailable
               ? "Quick scan settings could not be loaded. Refresh the page and try again."
-              : "Quick scans are temporarily unavailable until a dedicated verification widget is configured."}
+              : "Public Quick Scan is disabled on this installation."}
           </p>
         )}
         {!loaded && <p className="lx-scan__note" role="status">Scan settings are loading. The form becomes available when the service responds.</p>}
@@ -253,7 +253,7 @@ export function QuickScan() {
           <p className="lx-scan__note" role="status">Complete the verification check to enable scanning.</p>
         )}
         {!siteKey && config?.isProduction === true && (
-          <p className="lx-scan__note">A dedicated Turnstile widget is required before public scans can run.</p>
+          <p className="lx-scan__note">Ask the installation operator to configure a dedicated Turnstile widget to enable public scans.</p>
         )}
       </form>
 
