@@ -370,6 +370,9 @@ describe("crawler availability and linked-page failures", () => {
     expect(result.pages).toHaveLength(1);
     expect(result.coverageIncomplete).toBe(true);
     expect(result.findings.some((finding) => finding.ruleId === "reliability.analysis-incomplete")).toBe(true);
+    const incompleteFinding = result.findings.find((finding) => finding.ruleId === "reliability.analysis-incomplete");
+    expect(incompleteFinding?.pageUrl).toBe("https://example.com/private");
+    expect(JSON.stringify(incompleteFinding?.evidence)).not.toContain("token=secret");
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/private?token=secret"))).toBe(false);
   });
 
@@ -585,7 +588,7 @@ describe("crawler availability and linked-page failures", () => {
         return { ...html(url), headers: new Headers({ "content-type": "text/plain" }), body };
       }
       if (url === "https://example.com/linked") {
-        const redirectUrl = "https://destination.example/private";
+        const redirectUrl = "https://destination.example/private?token=secret";
         const decision = await options?.redirectPolicy?.(redirectUrl, 12_000);
         if (decision && !decision.allowed) {
           return {
@@ -606,6 +609,8 @@ describe("crawler availability and linked-page failures", () => {
     expect(result.brokenLinks).toBe(0);
     expect(result.findings.some((finding) => finding.ruleId === "reliability.analysis-incomplete"
       && finding.pageUrl === "https://example.com/linked")).toBe(true);
+    const incompleteFinding = result.findings.find((finding) => finding.ruleId === "reliability.analysis-incomplete");
+    expect(JSON.stringify(incompleteFinding?.evidence)).not.toContain("token=secret");
     expect(requested).toContain("https://destination.example/robots.txt");
     expect(requested).not.toContain("https://destination.example/private");
   });

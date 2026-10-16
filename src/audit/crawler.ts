@@ -194,9 +194,9 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
           if (block.kind !== "unsafe_path") {
             const policySource = block.kind === "disallowed" ? "robots.txt" : "an unreadable robots.txt policy";
             markCoverageIncomplete(
-              url,
+              withoutUrlQuery(url),
               `The crawler could not check this linked page because its redirect destination was blocked by ${policySource}${block.origin ? ` at ${block.origin}` : ""}.`,
-              { kind: "redirect_blocked", targetUrl: res.redirectUrl ?? null, block },
+              { kind: "redirect_blocked", destinationOrigin: block.origin ?? null },
             );
           }
           continue;
@@ -320,9 +320,9 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
           if (isUnsafeCrawlPath(path)) continue;
           if (isDisallowed(robotsRules, path)) {
             markCoverageIncomplete(
-              canon,
-              `The crawler could not check this linked page because robots.txt disallows ${path}.`,
-              { kind: "robots_disallowed", path },
+              withoutUrlQuery(canon),
+              "The crawler could not check this linked page because robots.txt disallows it.",
+              { kind: "robots_disallowed" },
             );
             continue;
           }
@@ -338,14 +338,14 @@ export async function crawlSite(origin: string, options: Partial<CrawlOptions> =
           if (isUnsafeCrawlPath(path)) continue;
           if (isDisallowed(robotsRules, path)) {
             markCoverageIncomplete(
-              canon,
-              `The crawler could not check this linked page because robots.txt disallows ${path}.`,
-              { kind: "robots_disallowed", path },
+              withoutUrlQuery(canon),
+              "The crawler could not check this linked page because robots.txt disallows it.",
+              { kind: "robots_disallowed" },
             );
             continue;
           }
           markCoverageIncomplete(
-            canon,
+            withoutUrlQuery(canon),
             `The crawler found this linked page beyond its configured ${opts.maxDepth}-level crawl depth.`,
             { kind: "crawl_depth_limit", maxDepth: opts.maxDepth },
             "Linked page is beyond the crawl depth limit",
@@ -394,6 +394,17 @@ function genericErrorPageFinding(url: string, status: number): Finding {
     evidence: { statusCode: status },
     recommendation: "Replace the generic error screen with the intended page, then run the audit again.",
   };
+}
+
+function withoutUrlQuery(value: string): string {
+  try {
+    const url = new URL(value);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return value;
+  }
 }
 
 function brokenPageFinding(url: string, errorCode?: SafeFetchErrorCode, status?: number): Finding {
