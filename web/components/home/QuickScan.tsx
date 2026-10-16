@@ -40,6 +40,7 @@ interface ScanResult {
     blockedByUnsafePath: number;
     blockedByRobots: number;
     blockedBySafety: number;
+    rateLimited: number;
     complete: boolean | null;
   };
   httpsRedirects: boolean | null;
@@ -308,6 +309,7 @@ function ScanReport({ result }: { result: ScanResult }) {
         {result.linkCoverage!.blockedByUnsafePath > 0 && ` Safety rules skipped ${result.linkCoverage!.blockedByUnsafePath} unsafe link${result.linkCoverage!.blockedByUnsafePath === 1 ? "" : "s"}.`}
         {result.linkCoverage!.blockedByRobots > 0 && ` robots.txt blocked ${result.linkCoverage!.blockedByRobots} link${result.linkCoverage!.blockedByRobots === 1 ? "" : "s"}.`}
         {result.linkCoverage!.blockedBySafety > 0 && ` Safety checks prevented checking ${result.linkCoverage!.blockedBySafety} link${result.linkCoverage!.blockedBySafety === 1 ? "" : "s"}.`}
+        {result.linkCoverage!.rateLimited > 0 && ` Rate limits prevented confirming ${result.linkCoverage!.rateLimited} link${result.linkCoverage!.rateLimited === 1 ? "" : "s"}.`}
       </p>}
       {!homepageUnavailable && !incompleteLinks && firstFailure && <p className="lx-result__empty" role="status">{firstFailure.description} No score was calculated; technical categories are unassessed.</p>}
 

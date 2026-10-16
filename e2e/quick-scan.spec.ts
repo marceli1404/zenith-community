@@ -152,7 +152,7 @@ test("an incomplete link scan withholds the overall score and explains the cover
       sitemapFound: true,
       brokenLinks: 0,
       checkedLinks: 8,
-      linkCoverage: { discovered: 9, discoveryTruncated: true, checked: 8, limit: 8, omittedByLimit: 1, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: false },
+      linkCoverage: { discovered: 9, discoveryTruncated: true, checked: 8, limit: 8, omittedByLimit: 1, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, rateLimited: 0, complete: false },
       httpsRedirects: true,
     }),
   }));
@@ -167,6 +167,36 @@ test("an incomplete link scan withholds the overall score and explains the cover
   await expect(page.getByText("100/100", { exact: true })).toHaveCount(4);
   await expect(page.locator(".lx-result__score")).not.toContainText("/100");
   await expect(page.getByText("Redirect detected", { exact: true })).toBeVisible();
+});
+
+test("a rate-limited link is shown as unverified and withholds the overall score", async ({ page }) => {
+  await mockPublicConfig(page, { environment: "preview", isProduction: false, turnstileSiteKey: "" });
+  await page.route("**/api/scan", (route) => route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify({
+      ok: true,
+      url: "https://limited.example/",
+      finalUrl: "https://limited.example/",
+      score: { overall: null, categories: { security: 100, accessibility: 100, performance: 100, seo: 100 }, reliabilityDeduction: 0 },
+      topFindings: [{ ruleId: "reliability.link-coverage-incomplete", category: "reliability", severity: "info", title: "Quick Scan did not check every discovered link", description: "A link was rate limited, so Quick Scan withheld the overall score.", recommendation: "Try again later." }],
+      additionalFindingCount: 0,
+      robotsTxtFound: true,
+      sitemapFound: true,
+      brokenLinks: 0,
+      checkedLinks: 0,
+      linkCoverage: { discovered: 1, discoveryTruncated: false, checked: 0, limit: 8, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, rateLimited: 1, complete: false },
+      httpsRedirects: true,
+    }),
+  }));
+
+  await page.goto("/");
+  await page.getByLabel("Website address").fill("https://limited.example/");
+  await page.getByRole("button", { name: "Check site" }).click();
+
+  await expect(page.getByLabel("Overall score not fully assessed")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Rate limits prevented confirming 1 link.");
+  await expect(page.locator(".lx-scan-facts").getByText("0 found among 0 checked")).toBeVisible();
 });
 
 test("a truncated homepage is shown as not assessed without a numeric score", async ({ page }) => {

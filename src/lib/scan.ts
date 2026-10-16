@@ -38,6 +38,7 @@ export interface QuickScanResult {
     blockedByUnsafePath: number;
     blockedByRobots: number;
     blockedBySafety: number;
+    rateLimited: number;
     complete: boolean | null;
   };
   httpsRedirects: boolean | null;
@@ -290,6 +291,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
   let brokenLinks = 0;
   let checkedLinks = 0;
   let blockedBySafety = 0;
+  let rateLimited = 0;
   const linkResults = await Promise.all(
     sameOriginLinks.map((l) => headWithGetFallback(l, { timeoutMs: 6000, redirectPolicy: checkCrawlTarget })),
   );
@@ -299,6 +301,12 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
     // being assessed; that is neither a broken link nor a checked endpoint.
     if (!r.ok && (r.errorCode === "redirect_policy" || r.errorCode === "blocked_target")) {
       blockedBySafety += 1;
+      continue;
+    }
+    // A 429 limits this scanner's request; it does not establish whether a
+    // normal visitor can open the link, so leave it unverified and unscored.
+    if (r.ok && r.status === 429) {
+      rateLimited += 1;
       continue;
     }
     checkedLinks += 1;
@@ -322,7 +330,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
   }
 
   const linkCoverageComplete = omittedByLimit === 0 && unsafeSameOriginLinks.length === 0
-    && robotsDisallowedLinks.length === 0 && blockedBySafety === 0;
+    && robotsDisallowedLinks.length === 0 && blockedBySafety === 0 && rateLimited === 0;
   if (!linkCoverageComplete) {
     findings.push({
       category: "reliability",
@@ -338,6 +346,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
         blockedByUnsafePath: unsafeSameOriginLinks.length,
         blockedByRobots: robotsDisallowedLinks.length,
         blockedBySafety,
+        rateLimited,
       },
       recommendation: "Resolve the coverage limits or robots policy, then run a deeper audit for a complete result.",
     });
@@ -377,6 +386,7 @@ export async function quickScan(target: string, appName: string): Promise<QuickS
       blockedByUnsafePath: unsafeSameOriginLinks.length,
       blockedByRobots: robotsDisallowedLinks.length,
       blockedBySafety,
+      rateLimited,
       complete: linkCoverageComplete,
     },
     httpsRedirects: httpsRedirects.redirects,
@@ -426,7 +436,7 @@ function notAssessedQuickScan(
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
-    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
+    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, rateLimited: 0, complete: null },
     httpsRedirects: null,
   };
 }
@@ -469,7 +479,7 @@ function unavailableQuickScan(target: string, errorCode: string, evidence: Recor
     sitemapFound: null,
     brokenLinks: 0,
     checkedLinks: 0,
-    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, complete: null },
+    linkCoverage: { discovered: 0, discoveryTruncated: false, checked: 0, limit: MAX_LINKS_TO_CHECK, omittedByLimit: 0, blockedByUnsafePath: 0, blockedByRobots: 0, blockedBySafety: 0, rateLimited: 0, complete: null },
     httpsRedirects: null,
   };
 }

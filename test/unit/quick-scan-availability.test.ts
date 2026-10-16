@@ -965,6 +965,7 @@ describe("quick scan homepage availability", () => {
       blockedByUnsafePath: 0,
       blockedByRobots: 0,
       blockedBySafety: 0,
+      rateLimited: 0,
       complete: false,
     });
     expect(result.score.overall).toBeNull();
@@ -1331,8 +1332,11 @@ describe("quick scan homepage availability", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.checkedLinks).toBe(1);
-    expect(result.brokenLinks).toBe(1);
+    expect(result.checkedLinks).toBe(0);
+    expect(result.brokenLinks).toBe(0);
+    expect(result.score.overall).toBeNull();
+    expect(result.linkCoverage).toMatchObject({ discovered: 1, checked: 0, rateLimited: 1, complete: false });
+    expect(result.topFindings).not.toContainEqual(expect.objectContaining({ ruleId: "reliability.broken-link" }));
     expect(safeFetchMock).toHaveBeenCalledWith(link, expect.objectContaining({ method: "HEAD" }));
     expect(safeFetchMock).not.toHaveBeenCalledWith(link, expect.objectContaining({ method: "GET" }));
   });
